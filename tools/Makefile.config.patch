@@ -1,0 +1,38 @@
+--- Makefile.config	2020-04-29 19:40:33.940003186 +0300
++++ Makefile.config.new	2020-04-29 19:40:56.880016942 +0300
+@@ -6,12 +6,12 @@
+ 
+ # If defined to non-empty value, generates dynamic libraries.
+ # Do not forget to add -fPIC to CFLAGS and CFLAGS_DEBUG
+-HAS_SHARED=1
++HAS_SHARED=
+ 
+ # If defined to non-empty value, compiles the OCaml interface (bytecode)
+-HAS_OCAML = 1
++HAS_OCAML=
+ # If defined to non-empty value, compiles the OCaml interface (native code)
+-HAS_OCAMLOPT = 1
++HAS_OCAMLOPT=
+ 
+ # If defined to non-empty value, compiles the C++ interface (beta version)
+ # HAS_CPP = 1
+@@ -40,16 +40,16 @@
+ # Where to install and to find APRON
+ # ($(APRON_PREFIX)/include, $(APRON_PREFIX)/lib)
+ #
+-APRON_PREFIX = /tmp
++APRON_PREFIX = $(CURDIR)/../installed
+ 
+ # Where to install and to find MLGMPIDL
+ # ($(MLGMPIDL_PREFIX)/lib)
+ # Only if you do not use FINDLIB
+-MLGMPIDL_PREFIX = /tmp
++MLGMPIDL_PREFIX = $(CURDIR)/../installed
+ 
+ # Where to install Java .jar files
+ #
+-JAVA_PREFIX = /tmp
++JAVA_PREFIX = $(CURDIR)/../installed
+ 
+ # Where to find GMP ($(GMP_PREFIX)/include, ($GMP_PREFIX)/lib
+ #
