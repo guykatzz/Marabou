@@ -33,6 +33,7 @@ set(REGRESS_DIR "${PROJECT_SOURCE_DIR}/regress")
 set(ENGINE_DIR "${SRC_DIR}/engine")
 set(PYBIND11_DIR "${TOOLS_DIR}/pybind11-2.3.0")
 set(BOOST_DIR "${TOOLS_DIR}/boost_1_68_0")
+set(APRON_DIR "${TOOLS_DIR}/apron")
 set(COMMON_DIR "${SRC_DIR}/common")
 set(BASIS_DIR "${SRC_DIR}/basis_factorization")
 
@@ -151,6 +152,19 @@ endif()
 set(LIBS_INCLUDES ${Boost_INCLUDE_DIRS})
 set(LIBS ${Boost_LIBRARIES})
 
+# Apron
+set(APRON_ROOT "${APRON_DIR}/installed")
+
+if(NOT EXISTS "${APRON_DIR}")
+  execute_process(COMMAND ${TOOLS_DIR}/download_apron.sh)
+endif()
+
+set(APRON_LIB apron)
+
+add_library(${APRON_LIB} SHARED IMPORTED)
+set_target_properties(${APRON_LIB} PROPERTIES IMPORTED_LOCATION ${APRON_DIR}/installed/lib/libapron.a)
+list(APPEND LIBS ${APRON_LIB})
+target_include_directories(${APRON_LIB} INTERFACE ${APRON_DIR}/installed/include)
 
 # pthread
 set(THREADS_PREFER_PTHREAD_FLAG ON)

@@ -20,6 +20,14 @@
 #include "Map.h"
 #include "Tightening.h"
 
+#include "ap_global0.h"
+#include "ap_global1.h"
+
+#include "box.h"
+#include "oct.h"
+#include "pk.h"
+#include "pkeq.h"
+
 /*
   A class for performing operations that require knowledge of network
   level structure and topology.
@@ -215,6 +223,105 @@ private:
     void absoluteValueSymbolicPropagation( const Index &index, double &lbLb, double &lbUb, double &ubLb, double &ubUb );
 
     static void log( const String &message );
+
+    void dummy()
+    {
+        const char *var_x = "x";
+        const char *var_y = "y";
+        const char *var_z = "z";
+        const char *var_u = "u";
+        const char *var_w = "w";
+        const char *var_v = "v";
+
+        ap_manager_t *man = box_manager_alloc();
+
+
+
+
+        const char *vars[6] = { var_x, var_y, var_z, var_u, var_w, var_v };
+
+        // [6] = {
+        //     "x","y","z","u","w","v"
+        // };
+        ap_environment_t* env = ap_environment_alloc((void **)&vars[0],3,(void **)&vars[3],3);
+
+        /* =================================================================== */
+        /* Creation of polyhedra
+           1/2x+2/3y=1, [1,2]<=z+2w<=4 */
+        /* =================================================================== */
+
+        /* 0. Create the array */
+        ap_lincons1_array_t array = ap_lincons1_array_make(env,3);
+
+        /* 1.a Creation of an equality constraint 1/2x+2/3y=1 */
+        ap_linexpr1_t expr = ap_linexpr1_make(env,AP_LINEXPR_SPARSE,2);
+        ap_lincons1_t cons = ap_lincons1_make(AP_CONS_EQ,&expr,NULL);
+        /* Now expr is memory-managed by cons */
+
+        /* 1.b Fill the constraint */
+        ap_lincons1_set_list(&cons,
+                             AP_COEFF_S_FRAC,1,2,"x",
+                             AP_COEFF_S_FRAC,2,3,"y",
+                             AP_CST_S_INT,1,
+                             AP_END);
+        /* 1.c Put in the array */
+        ap_lincons1_array_set(&array,0,&cons);
+        /* Now cons is memory-managed by array */
+
+        /* 2.a Creation of an inequality constraint [1,2]<=z+2w */
+        expr = ap_linexpr1_make(env,AP_LINEXPR_SPARSE,2);
+        cons = ap_lincons1_make(AP_CONS_SUPEQ,&expr,NULL);
+        /* The old cons is not lost, because it is stored in the array.
+           It would be an error to clear it (same for expr). */
+        /* 2.b Fill the constraint */
+        ap_lincons1_set_list(&cons,
+                             AP_COEFF_S_INT,1,"z",
+                             AP_COEFF_S_DOUBLE,2.0,"w",
+                             AP_CST_I_INT,-2,-1,
+                             AP_END);
+        /* 2.c Put in the array */
+        ap_lincons1_array_set(&array,1,&cons);
+
+        /* 2.a Creation of an inequality constraint */
+        expr = ap_linexpr1_make(env,AP_LINEXPR_SPARSE,2);
+        cons = ap_lincons1_make(AP_CONS_SUPEQ,&expr,NULL);
+        /* The old cons is not lost, because it is stored in the array.
+           It would be an error to clear it (same for expr). */
+        /* 2.b Fill the constraint */
+        ap_lincons1_set_list(&cons,
+                             AP_COEFF_S_INT,1,"z",
+                             AP_COEFF_S_DOUBLE,2.0,"w",
+                             AP_CST_I_INT,-2,-1,
+                             AP_END);
+        /* 2.c Put in the array */
+        ap_lincons1_array_set(&array,1,&cons);
+
+        /* 3.a Creation of an inequality constraint by duplication and
+           modification z+2w<=4 */
+        cons = ap_lincons1_copy(&cons);
+        /* 3.b Fill the constraint (by negating the existing coefficients) */
+        expr = ap_lincons1_linexpr1ref(&cons);
+        {
+            ap_coeff_t* pcoeff;
+            ap_var_t var;
+            size_t i;
+            ap_linexpr1_ForeachLinterm1(&expr,i,var,pcoeff){
+                ap_coeff_neg(pcoeff,pcoeff);
+            }
+        }
+        ap_linexpr1_set_cst_scalar_int(&expr,4);
+        /* 3.c Put in the array */
+        ap_lincons1_array_set(&array,2,&cons);
+
+        /* 4. Creation of an abstract value */
+        ap_abstract1_t abs = ap_abstract1_of_lincons_array(man,env,&array);
+
+        fprintf(stdout,"Abstract value:\n");
+        ap_abstract1_fprint(stdout,man,&abs);
+
+        /* deallocation */
+        ap_lincons1_array_clear(&array);
+    }
 };
 
 #endif // __NetworkLevelReasoner_h__
