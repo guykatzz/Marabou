@@ -1151,10 +1151,76 @@ public:
             TS_ASSERT( expectedBounds.exists( bound ) );
     }
 
+    void test_box_approximation()
+    {
+        /*
+          We express the triangle:
+
+          y >= 0
+          x <= 4
+          y <= 1/2x
+
+          Expected box approximation: [0,4] x [0,2]
+        */
+        const char *var_x = "x";
+        const char *var_y = "y";
+
+        ap_manager_t *man = box_manager_alloc();
+
+        const char *vars[] = { var_x, var_y };
+
+        ap_environment_t* env = ap_environment_alloc(NULL,0,(void **)&vars[0],2);
+
+        /* Create a constraint array */
+        ap_lincons1_array_t constraintArray = ap_lincons1_array_make(env,3);
+
+        // y >= 0
+        ap_linexpr1_t expr = ap_linexpr1_make(env,AP_LINEXPR_SPARSE,1);
+        ap_lincons1_t cons = ap_lincons1_make(AP_CONS_SUPEQ,&expr,NULL);
+
+        ap_lincons1_set_list(&cons,
+                             AP_COEFF_S_INT,1,"y",
+                             AP_CST_S_INT,0,
+                             AP_END);
+
+        ap_lincons1_array_set(&constraintArray,0,&cons);
+
+        // x <= 4
+        expr = ap_linexpr1_make(env,AP_LINEXPR_SPARSE,1);
+        cons = ap_lincons1_make(AP_CONS_SUPEQ,&expr,NULL);
+
+        ap_lincons1_set_list(&cons,
+                             AP_COEFF_S_INT,-1,"x",
+                             AP_CST_S_INT,4,
+                             AP_END);
+
+        ap_lincons1_array_set(&constraintArray,1,&cons);
+
+        // 1/2x - y >= 0
+        expr = ap_linexpr1_make(env,AP_LINEXPR_SPARSE,2);
+        cons = ap_lincons1_make(AP_CONS_SUPEQ,&expr,NULL);
+
+        ap_lincons1_set_list(&cons,
+                             AP_COEFF_S_DOUBLE,0.5,"x",
+                             AP_COEFF_S_INT,-1,"y",
+                             AP_END);
+
+        ap_lincons1_array_set(&constraintArray,2,&cons);
+
+        // Create the abstract value
+        ap_abstract1_t av1 = ap_abstract1_of_lincons_array(man,env,&constraintArray);
+        fprintf(stdout,"Abstract value 1:\n");
+        ap_abstract1_fprint(stdout,man,&av1);
+
+        // Free stuff
+        ap_lincons1_array_clear(&constraintArray);
+        ap_abstract1_clear(man, &av1);
+        ap_environment_free(env);
+        ap_manager_free(man);
+    }
+
     void test_new_stuff()
     {
-        TS_TRACE( "Starting" );
-
         const char *var_x = "x";
         const char *var_y = "y";
 
@@ -1165,8 +1231,7 @@ public:
         ap_environment_t* env = ap_environment_alloc(NULL,0,(void **)&vars[0],2);
 
         /* =================================================================== */
-        // Bounds:
-        //   3<=x<=5, -2<=y<=2
+        // Create AV 1: 3<=x<=5, -2<=y<=2
         /* =================================================================== */
 
         /* Create a constraint array */
@@ -1211,23 +1276,126 @@ public:
 
         ap_lincons1_set_list(&cons,
                              AP_COEFF_S_INT,-1,"y",
-                             AP_CST_S_INT,-2,
+                             AP_CST_S_INT,2,
                              AP_END);
 
         ap_lincons1_array_set(&constraintArray,3,&cons);
 
         // Create the abstract value
-        ap_abstract1_t abs = ap_abstract1_of_lincons_array(man,env,&constraintArray);
-        fprintf(stdout,"Abstract value:\n");
-        ap_abstract1_fprint(stdout,man,&abs);
+        ap_abstract1_t av1 = ap_abstract1_of_lincons_array(man,env,&constraintArray);
+        fprintf(stdout,"Abstract value 1:\n");
+        ap_abstract1_fprint(stdout,man,&av1);
+
+        /* =================================================================== */
+        // Create AV 2: 4<=x<=6, -1<=y<=3
+        /* =================================================================== */
+
+        /* Create a constraint array */
+        ap_lincons1_array_t constraintArray2 = ap_lincons1_array_make(env,4);
+
+        // x lb
+        expr = ap_linexpr1_make(env,AP_LINEXPR_SPARSE,1);
+        cons = ap_lincons1_make(AP_CONS_SUPEQ,&expr,NULL);
+
+        ap_lincons1_set_list(&cons,
+                             AP_COEFF_S_INT,1,"x",
+                             AP_CST_S_INT,-4,
+                             AP_END);
+
+        ap_lincons1_array_set(&constraintArray2,0,&cons);
+
+        // x ub
+        expr = ap_linexpr1_make(env,AP_LINEXPR_SPARSE,1);
+        cons = ap_lincons1_make(AP_CONS_SUPEQ,&expr,NULL);
+
+        ap_lincons1_set_list(&cons,
+                             AP_COEFF_S_INT,-1,"x",
+                             AP_CST_S_INT,6,
+                             AP_END);
+
+        ap_lincons1_array_set(&constraintArray2,1,&cons);
+
+        // y lb
+        expr = ap_linexpr1_make(env,AP_LINEXPR_SPARSE,1);
+        cons = ap_lincons1_make(AP_CONS_SUPEQ,&expr,NULL);
+
+        ap_lincons1_set_list(&cons,
+                             AP_COEFF_S_INT,1,"y",
+                             AP_CST_S_INT,1,
+                             AP_END);
+
+        ap_lincons1_array_set(&constraintArray2,2,&cons);
+
+        // y ub
+        expr = ap_linexpr1_make(env,AP_LINEXPR_SPARSE,1);
+        cons = ap_lincons1_make(AP_CONS_SUPEQ,&expr,NULL);
+
+        ap_lincons1_set_list(&cons,
+                             AP_COEFF_S_INT,-1,"y",
+                             AP_CST_S_INT,3,
+                             AP_END);
+
+        ap_lincons1_array_set(&constraintArray2,3,&cons);
+
+        // Create the abstract value
+        ap_abstract1_t av2 = ap_abstract1_of_lincons_array(man,env,&constraintArray2);
+        fprintf(stdout,"Abstract value 2:\n");
+        ap_abstract1_fprint(stdout,man,&av2);
+
+        /* =================================================================== */
+        // We now have:
+        //    AV1: 3<=x<=5, -2<=y<=2
+        //    AV2: 4<=x<=6, -1<=y<=3
+        //
+        // Now compute their join and meet:
+        //
+        //    join:    AV1 |_| AV2:  3<=x<=6, -2<=y<=3
+        //                  _
+        //    meet:    AV1 | | AV2:  4<=x<=5, -1<=y<=2
+        //
+        /* =================================================================== */
+
+        ap_abstract1_t join = ap_abstract1_join( man, // manager
+                                                 false, // destructive?
+                                                 &av1,
+                                                 &av2 );
+
+        fprintf(stdout,"join:\n");
+        ap_abstract1_fprint(stdout,man,&join);
+
+
+        ap_abstract1_t meet = ap_abstract1_meet( man, // manager
+                                                 false, // destructive?
+                                                 &av1,
+                                                 &av2 );
+
+        fprintf(stdout,"meet:\n");
+        ap_abstract1_fprint(stdout,man,&meet);
+
+
+        /* =================================================================== */
+        // Extract the upper and lower bounds of each variable, from the join AV
+        /* =================================================================== */
+
+
+        ap_interval_t *xBoundsJoin = ap_abstract1_bound_variable( man, &join, (void *)"x" );
+
+        fprintf(stdout,"x's interval in the join:");
+        ap_interval_fprint(stdout,xBoundsJoin);
+        printf( "\n" );
 
         // Free stuff
+        ap_interval_free( xBoundsJoin );
         ap_lincons1_array_clear(&constraintArray);
-        ap_abstract1_clear(man, &abs);
+        ap_lincons1_array_clear(&constraintArray2);
+        ap_abstract1_clear(man, &av1);
+        ap_abstract1_clear(man, &av2);
+        ap_abstract1_clear(man, &join);
+        ap_abstract1_clear(man, &meet);
         ap_environment_free(env);
         ap_manager_free(man);
 
-        TS_ASSERT( false );
+        // TS_ASSERT( false );
     }
 };
 
