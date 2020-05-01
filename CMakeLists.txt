@@ -10,7 +10,7 @@ option(FORCE_PYTHON_BUILD "Build python even if there is only python32" OFF)
 option(RUN_UNIT_TEST "run unit tests on build" ON)
 option(RUN_REGRESS_TEST "run regression tests on build" OFF)
 option(RUN_SYSTEM_TEST "run system tests on build" OFF)
-option(RUN_MEMORY_TEST "run cxxtest testing with ASAN ON" ON)
+option(RUN_MEMORY_TEST "run cxxtest testing with ASAN ON" OFF)
 
 set(DEFAULT_PYTHON_VERSION "3" CACHE STRING "Default Python version 2/3")
 set(PYTHON_VERSIONS_SUPPORTED 2 3)
@@ -159,12 +159,21 @@ if(NOT EXISTS "${APRON_DIR}")
   execute_process(COMMAND ${TOOLS_DIR}/download_apron.sh)
 endif()
 
-set(APRON_LIB apron)
+set(APRON_LIB boxD_debug)
+set(APRON_LIB_2 apron_debug)
 
 add_library(${APRON_LIB} SHARED IMPORTED)
-set_target_properties(${APRON_LIB} PROPERTIES IMPORTED_LOCATION ${APRON_DIR}/installed/lib/libapron.a)
+set_target_properties(${APRON_LIB} PROPERTIES IMPORTED_LOCATION ${APRON_DIR}/installed/lib/libboxD_debug.a)
 list(APPEND LIBS ${APRON_LIB})
 target_include_directories(${APRON_LIB} INTERFACE ${APRON_DIR}/installed/include)
+
+add_library(${APRON_LIB_2} SHARED IMPORTED)
+set_target_properties(${APRON_LIB_2} PROPERTIES IMPORTED_LOCATION ${APRON_DIR}/installed/lib/libapron_debug.a)
+list(APPEND LIBS ${APRON_LIB_2})
+target_include_directories(${APRON_LIB_2} INTERFACE ${APRON_DIR}/installed/include)
+
+list(APPEND LIBS gmp)
+list(APPEND LIBS mpfr)
 
 # pthread
 set(THREADS_PREFER_PTHREAD_FLAG ON)

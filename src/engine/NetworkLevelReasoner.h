@@ -224,6 +224,7 @@ private:
 
     static void log( const String &message );
 
+public:
     void dummy()
     {
         const char *var_x = "x";
@@ -321,6 +322,8 @@ private:
 
         /* deallocation */
         ap_lincons1_array_clear(&array);
+
+        ap_manager_free(man);
     }
 };
 

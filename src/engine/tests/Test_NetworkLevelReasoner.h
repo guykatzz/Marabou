@@ -1150,6 +1150,12 @@ public:
         for ( const auto &bound : bounds )
             TS_ASSERT( expectedBounds.exists( bound ) );
     }
+
+    void test_new_stuff()
+    {
+        NetworkLevelReasoner nlr;
+        nlr.dummy();
+    }
 };
 
 //
