@@ -1153,8 +1153,81 @@ public:
 
     void test_new_stuff()
     {
-        NetworkLevelReasoner nlr;
-        nlr.dummy();
+        TS_TRACE( "Starting" );
+
+        const char *var_x = "x";
+        const char *var_y = "y";
+
+        ap_manager_t *man = box_manager_alloc();
+
+        const char *vars[] = { var_x, var_y };
+
+        ap_environment_t* env = ap_environment_alloc(NULL,0,(void **)&vars[0],2);
+
+        /* =================================================================== */
+        // Bounds:
+        //   3<=x<=5, -2<=y<=2
+        /* =================================================================== */
+
+        /* Create a constraint array */
+        ap_lincons1_array_t constraintArray = ap_lincons1_array_make(env,4);
+
+        // x lb
+        ap_linexpr1_t expr = ap_linexpr1_make(env,AP_LINEXPR_SPARSE,1);
+        ap_lincons1_t cons = ap_lincons1_make(AP_CONS_SUPEQ,&expr,NULL);
+
+        ap_lincons1_set_list(&cons,
+                             AP_COEFF_S_INT,1,"x",
+                             AP_CST_S_INT,-3,
+                             AP_END);
+
+        ap_lincons1_array_set(&constraintArray,0,&cons);
+
+        // x ub
+        expr = ap_linexpr1_make(env,AP_LINEXPR_SPARSE,1);
+        cons = ap_lincons1_make(AP_CONS_SUPEQ,&expr,NULL);
+
+        ap_lincons1_set_list(&cons,
+                             AP_COEFF_S_INT,-1,"x",
+                             AP_CST_S_INT,5,
+                             AP_END);
+
+        ap_lincons1_array_set(&constraintArray,1,&cons);
+
+        // y lb
+        expr = ap_linexpr1_make(env,AP_LINEXPR_SPARSE,1);
+        cons = ap_lincons1_make(AP_CONS_SUPEQ,&expr,NULL);
+
+        ap_lincons1_set_list(&cons,
+                             AP_COEFF_S_INT,1,"y",
+                             AP_CST_S_INT,2,
+                             AP_END);
+
+        ap_lincons1_array_set(&constraintArray,2,&cons);
+
+        // y ub
+        expr = ap_linexpr1_make(env,AP_LINEXPR_SPARSE,1);
+        cons = ap_lincons1_make(AP_CONS_SUPEQ,&expr,NULL);
+
+        ap_lincons1_set_list(&cons,
+                             AP_COEFF_S_INT,-1,"y",
+                             AP_CST_S_INT,-2,
+                             AP_END);
+
+        ap_lincons1_array_set(&constraintArray,3,&cons);
+
+        // Create the abstract value
+        ap_abstract1_t abs = ap_abstract1_of_lincons_array(man,env,&constraintArray);
+        fprintf(stdout,"Abstract value:\n");
+        ap_abstract1_fprint(stdout,man,&abs);
+
+        // Free stuff
+        ap_lincons1_array_clear(&constraintArray);
+        ap_abstract1_clear(man, &abs);
+        ap_environment_free(env);
+        ap_manager_free(man);
+
+        TS_ASSERT( false );
     }
 };
 
