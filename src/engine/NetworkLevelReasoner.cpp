@@ -1180,7 +1180,7 @@ void NetworkLevelReasoner::dumpTopology() const
         for ( unsigned j = 0; j < layerSize; ++j )
         {
             printf( "\t\t" );
-            Index index( i, j );
+            NeuronIndex index( i, j );
             if ( _indexToWeightedSumVariable.exists( index ) )
                 printf( "%4u ", _indexToWeightedSumVariable[index] );
             else
@@ -1217,7 +1217,7 @@ void NetworkLevelReasoner::dumpTopology() const
             printf( "\n\tEquations:\n" );
             for ( unsigned j = 0; j < layerSize; ++j )
             {
-                printf( "\t\tx%u = ", _indexToWeightedSumVariable[Index( i, j )]);
+                printf( "\t\tx%u = ", _indexToWeightedSumVariable[NeuronIndex( i, j )]);
                 for ( unsigned k = 0; k < _layerSizes[i-1]; ++k )
                 {
                     double weight = _weights[i-1][k * layerSize + j];
@@ -1225,12 +1225,12 @@ void NetworkLevelReasoner::dumpTopology() const
                         continue;
 
                     if ( weight < 0 )
-                        printf( " - %.5lfx%u", -weight, _indexToActivationResultVariable[Index( i - 1, k )] );
+                        printf( " - %.5lfx%u", -weight, _indexToActivationResultVariable[NeuronIndex( i - 1, k )] );
                     else
-                        printf( " + %.5lfx%u", weight, _indexToActivationResultVariable[Index( i - 1, k )] );
+                        printf( " + %.5lfx%u", weight, _indexToActivationResultVariable[NeuronIndex( i - 1, k )] );
                 }
 
-                double bias = _bias[Index( i, j )];
+                double bias = _bias[NeuronIndex( i, j )];
                 if ( bias > 0 )
                     printf( " + %.2lf", bias );
                 else
@@ -1239,7 +1239,6 @@ void NetworkLevelReasoner::dumpTopology() const
             }
         }
     }
-
 }
 
 //
