@@ -200,6 +200,25 @@ private:
 
     static void log( const String &message );
 
+    AbstractDomainBoundTightener _aiTightener;
+
+public:
+    void runAiTightener()
+    {
+        obtainCurrentBounds();
+        _aiTightener.initialize( _numberOfLayers,
+                                 &_layerSizes,
+                                 &_neuronToActivationFunction,
+                                 (const double **)_weights,
+                                 &_bias,
+                                 _lowerBoundsWeightedSums,
+                                 _upperBoundsWeightedSums,
+                                 _lowerBoundsActivations,
+                                 _upperBoundsActivations );
+
+        _aiTightener.run();
+    }
+
 public:
     void dummy()
     {

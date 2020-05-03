@@ -241,6 +241,8 @@ bool Engine::solve( unsigned timeoutInSeconds )
                 // For debugging purposes
                 checkBoundCompliancyWithDebugSolution();
 
+                _networkLevelReasoner->runAiTightener();
+
                 while ( applyAllValidConstraintCaseSplits() )
                     performSymbolicBoundTightening();
 

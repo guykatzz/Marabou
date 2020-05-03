@@ -40,8 +40,6 @@
 class AbstractDomainBoundTightener
 {
 public:
-    AbstractDomainBoundTightener();
-    ~AbstractDomainBoundTightener();
 
     void initialize( unsigned numberOfLayers,
                      const Map<unsigned, unsigned> *layerSizes,
@@ -74,7 +72,9 @@ public:
         for ( _currentLayer = 1; _currentLayer < _numberOfLayers; ++_currentLayer )
         {
             // Apply the weighted sum
+            printf( "Starting affine transformation for layer %u\n", _currentLayer );
             performAffineTransformation();
+            exit( 1 );
 
             // Apply the activation function
             applyActivationFunction();
@@ -199,6 +199,12 @@ private:
             // Register the constraint
             ap_lincons1_array_set( &constraintArray, previousLayerSize * 2 + i, &cons );
         }
+
+        ap_abstract1_t av1 = ap_abstract1_of_lincons_array( _apronManager,
+                                                            apronEnvironment,
+                                                            &constraintArray );
+        fprintf(stdout,"Affine transformation AV:\n");
+        ap_abstract1_fprint( stdout, _apronManager, &av1 );
 
         for ( unsigned i = 0; i < previousLayerSize + currentLayerSize; ++i )
             delete[] variables[i];
