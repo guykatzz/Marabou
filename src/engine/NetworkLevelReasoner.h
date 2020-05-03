@@ -20,6 +20,9 @@
 #include "Map.h"
 #include "PiecewiseLinearFunctionType.h"
 #include "Tightening.h"
+#include "NeuronIndex.h"
+
+#include "AbstractDomainBoundTightener.h"
 
 #include "ap_global0.h"
 #include "ap_global1.h"
@@ -37,34 +40,6 @@
 class NetworkLevelReasoner
 {
 public:
-    struct Index
-    {
-        Index()
-            : _layer( 0 )
-            , _neuron( 0 )
-        {
-        }
-
-        Index( unsigned layer, unsigned neuron )
-            : _layer( layer )
-            , _neuron( neuron )
-        {
-        }
-
-        bool operator<( const Index &other ) const
-        {
-            if ( _layer < other._layer )
-                return true;
-            if ( _layer > other._layer )
-                return false;
-
-            return _neuron < other._neuron;
-        }
-
-        unsigned _layer;
-        unsigned _neuron;
-    };
-
     NetworkLevelReasoner();
     ~NetworkLevelReasoner();
 
@@ -91,15 +66,15 @@ public:
     unsigned getWeightedSumVariable( unsigned layer, unsigned neuron ) const;
     void setActivationResultVariable( unsigned layer, unsigned neuron, unsigned variable );
     unsigned getActivationResultVariable( unsigned layer, unsigned neuron ) const;
-    const Map<Index, unsigned> &getIndexToWeightedSumVariable();
-    const Map<Index, unsigned> &getIndexToActivationResultVariable();
+    const Map<NeuronIndex, unsigned> &getIndexToWeightedSumVariable();
+    const Map<NeuronIndex, unsigned> &getIndexToActivationResultVariable();
 
     /*
       Mapping from node indices to the nodes' assignments, as computed
       by evaluate()
     */
-    const Map<Index, double> &getIndexToWeightedSumAssignment();
-    const Map<Index, double> &getIndexToActivationResultAssignment();
+    const Map<NeuronIndex, double> &getIndexToWeightedSumAssignment();
+    const Map<NeuronIndex, double> &getIndexToActivationResultAssignment();
 
     /*
       Interface methods for performing operations on the network.
@@ -160,7 +135,7 @@ private:
     double **_weights;
     double **_positiveWeights;
     double **_negativeWeights;
-    Map<Index, double> _bias;
+    Map<NeuronIndex, double> _bias;
 
     unsigned _maxLayerSize;
     unsigned _inputLayerSize;
@@ -175,22 +150,22 @@ private:
     /*
       Mappings of indices to weighted sum and activation result variables
     */
-    Map<Index, unsigned> _indexToWeightedSumVariable;
-    Map<Index, unsigned> _indexToActivationResultVariable;
-    Map<unsigned, Index> _weightedSumVariableToIndex;
-    Map<unsigned, Index> _activationResultVariableToIndex;
+    Map<NeuronIndex, unsigned> _indexToWeightedSumVariable;
+    Map<NeuronIndex, unsigned> _indexToActivationResultVariable;
+    Map<unsigned, NeuronIndex> _weightedSumVariableToIndex;
+    Map<unsigned, NeuronIndex> _activationResultVariableToIndex;
 
     /*
       Store the assignment to all variables when evaluate() is called
     */
-    Map<Index, double> _indexToWeightedSumAssignment;
-    Map<Index, double> _indexToActivationResultAssignment;
+    Map<NeuronIndex, double> _indexToWeightedSumAssignment;
+    Map<NeuronIndex, double> _indexToActivationResultAssignment;
 
     /*
       Store eliminated variables
     */
-    Map<Index, double> _eliminatedWeightedSumVariables;
-    Map<Index, double> _eliminatedActivationResultVariables;
+    Map<NeuronIndex, double> _eliminatedWeightedSumVariables;
+    Map<NeuronIndex, double> _eliminatedActivationResultVariables;
 
     /*
       Work space for bound tightening
@@ -217,8 +192,8 @@ private:
       Helper functions that perform symbolic bound propagation for a
       single neuron, according to its activation function
     */
-    void reluSymbolicPropagation( const Index &index, double &lbLb, double &lbUb, double &ubLb, double &ubUb );
-    void absoluteValueSymbolicPropagation( const Index &index, double &lbLb, double &lbUb, double &ubLb, double &ubUb );
+    void reluSymbolicPropagation( const NeuronIndex &index, double &lbLb, double &lbUb, double &ubLb, double &ubUb );
+    void absoluteValueSymbolicPropagation( const NeuronIndex &index, double &lbLb, double &lbUb, double &ubLb, double &ubUb );
 
     static void log( const String &message );
 
