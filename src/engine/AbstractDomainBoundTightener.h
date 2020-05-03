@@ -16,8 +16,19 @@
 #ifndef __AbstractDomainBoundTightener_h__
 #define __AbstractDomainBoundTightener_h__
 
+#include "MStringf.h"
 #include "NeuronIndex.h"
 #include "PiecewiseLinearFunctionType.h"
+
+
+#include "ap_global0.h"
+#include "ap_global1.h"
+
+#include "box.h"
+
+#include "oct.h"
+#include "pk.h"
+#include "pkeq.h"
 
 /*
   A superclass for performing abstract-interpretation-based bound
@@ -36,22 +47,30 @@ public:
                      const Map<unsigned, unsigned> *layerSizes,
                      const Map<NeuronIndex, PiecewiseLinearFunctionType> *neuronToActivationFunction,
                      const double **weights,
-                     const Map<NeuronIndex, double> *bias )
+                     const Map<NeuronIndex, double> *bias,
+                     double **lowerBoundsWeightedSums,
+                     double **upperBoundsWeightedSums,
+                     double **lowerBoundsActivations,
+                     double **upperBoundsActivations
+                     )
     {
         _numberOfLayers = numberOfLayers;
         _layerSizes = layerSizes;
         _neuronToActivationFunction = neuronToActivationFunction;
         _weights = weights;
         _bias = bias;
+
+        _lowerBoundsWeightedSums = lowerBoundsWeightedSums;
+        _upperBoundsWeightedSums = upperBoundsWeightedSums;
+        _lowerBoundsActivations = lowerBoundsActivations;
+        _upperBoundsActivations = upperBoundsActivations;
     }
 
     void run()
     {
-        // Step 1: grab the input constraints
-        createInputAbstractValue();
+        allocate();
 
         // Step 2: propagate through the hidden layers
-
         for ( _currentLayer = 1; _currentLayer < _numberOfLayers; ++_currentLayer )
         {
             // Apply the weighted sum
@@ -61,6 +80,7 @@ public:
             applyActivationFunction();
         }
 
+        deallocate();
     }
 
 private:
@@ -70,18 +90,111 @@ private:
     const double **_weights;
     const Map<NeuronIndex, double> *_bias;
 
+    double **_lowerBoundsWeightedSums;
+    double **_upperBoundsWeightedSums;
+    double **_lowerBoundsActivations;
+    double **_upperBoundsActivations;
+
     unsigned _currentLayer;
 
-    void createInputAbstractValue()
+    String weightedSumVariableToString( NeuronIndex index )
     {
+        return Stringf( "ws_%u_%u", index._layer, index._neuron );
+    }
+
+    String activationResultVariableToString( NeuronIndex index )
+    {
+        return Stringf( "ar_%u_%u", index._layer, index._neuron );
     }
 
     void performAffineTransformation()
     {
+        /*
+          We create constraints that include:
+
+            - The bounds for the previous layer
+            - The variables of the current layer as a function of the
+              activation results from the previous layer
+        */
+
+        unsigned previousLayerSize = (*_layerSizes)[_currentLayer - 1];
+        unsigned currentLayerSize = (*_layerSizes)[_currentLayer];
+
+        // Create the variable names and allocate the environment
+        char **variables = new char *[previousLayerSize + currentLayerSize];
+        for ( unsigned i = 0; i < previousLayerSize; ++i )
+        {
+            variables[i] = new char[12];
+            String varName = activationResultVariableToString( NeuronIndex( _currentLayer - 1, i ) ).ascii();
+            strncpy( variables[i], varName.ascii(), varName.length() );
+        }
+        for ( unsigned i = 0; i < currentLayerSize; ++i )
+        {
+            variables[i + previousLayerSize] = new char[12];
+            String varName = weightedSumVariableToString( NeuronIndex( _currentLayer, i ) ).ascii();
+            strncpy( variables[i + previousLayerSize], varName.ascii(), varName.length() );
+        }
+
+        ap_environment_t *apronEnvironment = ap_environment_alloc( NULL,
+                                                                   0,
+                                                                   (void **)&variables[0],
+                                                                   previousLayerSize + currentLayerSize );
+
+        ap_lincons1_array_t constraintArray = ap_lincons1_array_make( apronEnvironment, ( 2 * previousLayerSize ) + currentLayerSize );
+
+        // Bounds for the previous layer
+        for ( unsigned i = 0; i < previousLayerSize; ++i )
+        {
+            double lb = _lowerBoundsWeightedSums[_currentLayer - 1][i];
+            double ub = _upperBoundsWeightedSums[_currentLayer - 1][i];
+
+            ap_linexpr1_t expr = ap_linexpr1_make( apronEnvironment,
+                                                    AP_LINEXPR_SPARSE,
+                                                    1 );
+            ap_lincons1_t cons = ap_lincons1_make( AP_CONS_SUPEQ,
+                                                   &expr,
+                                                   NULL );
+
+            // ws - lb >= 0
+            ap_lincons1_set_list( &cons,
+                                  AP_COEFF_S_INT, 1, activationResultVariableToString( NeuronIndex( _currentLayer - 1, i ) ),
+                                  AP_CST_S_DOUBLE, -lb,
+                                  AP_END );
+
+            ap_lincons1_array_set( &constraintArray, i * 2, &cons );
+
+            // - ws + ub >= 0
+            ap_lincons1_set_list( &cons,
+                                  AP_COEFF_S_INT, -1, activationResultVariableToString( NeuronIndex( _currentLayer - 1, i ) ),
+                                  AP_CST_S_DOUBLE, ub,
+                                  AP_END );
+
+            ap_lincons1_array_set( &constraintArray, i * 2 + 1, &cons );
+        }
+
+        for ( unsigned i = 0; i < previousLayerSize + currentLayerSize; ++i )
+            delete[] variables[i];
+        delete[] variables;
+
+        ap_lincons1_array_clear( &constraintArray );
+        ap_environment_free( apronEnvironment );
     }
 
     void applyActivationFunction()
     {
+    }
+
+    ap_manager_t *_apronManager;
+    char *_apronVariables;
+
+    void allocate()
+    {
+        _apronManager = box_manager_alloc();
+    }
+
+    void deallocate()
+    {
+        ap_manager_free( _apronManager );
     }
 };
 
