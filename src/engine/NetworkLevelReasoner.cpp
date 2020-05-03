@@ -338,9 +338,21 @@ void NetworkLevelReasoner::setWeight( unsigned sourceLayer, unsigned sourceNeuro
         _negativeWeights[sourceLayer][sourceNeuron * targetLayerSize + targetNeuron] = weight;
 }
 
+double NetworkLevelReasoner::getWeight( unsigned sourceLayer, unsigned sourceNeuron, unsigned targetNeuron ) const
+{
+    unsigned targetLayerSize = _layerSizes[sourceLayer + 1];
+    return _weights[sourceLayer][sourceNeuron * targetLayerSize + targetNeuron];
+}
+
 void NetworkLevelReasoner::setBias( unsigned layer, unsigned neuron, double bias )
 {
     _bias[NeuronIndex( layer, neuron )] = bias;
+}
+
+double NetworkLevelReasoner::getBias( unsigned layer, unsigned neuron ) const
+{
+    ASSERT( _bias.exists( NeuronIndex( layer, neuron ) ) );
+    return _bias[NeuronIndex( layer, neuron )];
 }
 
 void NetworkLevelReasoner::evaluate( double *input, double *output )

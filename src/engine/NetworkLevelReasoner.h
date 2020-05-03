@@ -51,6 +51,9 @@ public:
     void setWeight( unsigned sourceLayer, unsigned sourceNeuron, unsigned targetNeuron, double weight );
     void setBias( unsigned layer, unsigned neuron, double bias );
 
+    double getWeight( unsigned sourceLayer, unsigned sourceNeuron, unsigned targetNeuron ) const;
+    double getBias( unsigned layer, unsigned neuron ) const;
+
     /*
       A method that allocates all internal memory structures, based on
       the network's topology. Should be invoked after the layer sizes

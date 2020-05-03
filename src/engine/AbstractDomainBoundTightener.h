@@ -172,6 +172,34 @@ private:
             ap_lincons1_array_set( &constraintArray, i * 2 + 1, &cons );
         }
 
+        // Weight equations
+        for ( unsigned i = 0; i < currentLayerSize; ++i )
+        {
+            ap_linexpr1_t expr = ap_linexpr1_make( apronEnvironment,
+                                                   AP_LINEXPR_SPARSE,
+                                                   previousLayerSize + 1 );
+            ap_lincons1_t cons = ap_lincons1_make( AP_CONS_EQ,
+                                                   &expr,
+                                                   NULL );
+
+            // Add the target weighted sum variable and the bias
+            ap_lincons1_set_list( &cons,
+                                  AP_COEFF_S_INT, -1, weightedSumVariableToString( NeuronIndex( _currentLayer, i ) ).ascii(),
+                                  AP_CST_S_DOUBLE, (*_bias)[NeuronIndex( _currentLayer, i )],
+                                  AP_END );
+
+            for ( unsigned j = 0; j < previousLayerSize; ++j )
+            {
+                double weight = _weights[_currentLayer - 1][j * currentLayerSize + i];
+                ap_lincons1_set_list( &cons,
+                                  AP_COEFF_S_DOUBLE, weight, weightedSumVariableToString( NeuronIndex( _currentLayer, i ) ).ascii(),
+                                      AP_END );
+            }
+
+            // Register the constraint
+            ap_lincons1_array_set( &constraintArray, previousLayerSize * 2 + i, &cons );
+        }
+
         for ( unsigned i = 0; i < previousLayerSize + currentLayerSize; ++i )
             delete[] variables[i];
         delete[] variables;
