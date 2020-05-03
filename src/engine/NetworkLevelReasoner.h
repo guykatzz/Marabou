@@ -131,7 +131,7 @@ public:
 private:
     unsigned _numberOfLayers;
     Map<unsigned, unsigned> _layerSizes;
-    Map<Index, PiecewiseLinearFunctionType> _neuronToActivationFunction;
+    Map<NeuronIndex, PiecewiseLinearFunctionType> _neuronToActivationFunction;
     double **_weights;
     double **_positiveWeights;
     double **_negativeWeights;
