@@ -1397,6 +1397,121 @@ public:
 
         // TS_ASSERT( false );
     }
+
+    void test_affine_transformation()
+    {
+        TS_TRACE( "Affine transformation test starting" );
+
+        /*
+          We start with the box:
+
+          <x,y> = [3,5] x [-2,2]
+
+          And apply the affine transformation:
+
+          ( a )     ( 2 3 )   ( x )
+          (   )  =  (     ) * (   )
+          ( b )     ( 0 2 )   ( y )
+
+          This should produce a parallelogram whose nodes
+          are: (0,-4), (-4,4), (12,4), and (16,4)
+          And hence is bound in the <a,b> box [0,16] x [-4,4]
+        */
+
+        const char *var_x = "x";
+        const char *var_y = "y";
+        const char *var_a = "a";
+        const char *var_b = "b";
+
+        ap_manager_t *man = box_manager_alloc();
+
+        const char *vars[] = { var_x, var_y, var_a, var_b };
+
+        ap_environment_t* env = ap_environment_alloc(NULL,0,(void **)&vars[0],4);
+
+        /* Create a constraint array */
+        ap_lincons1_array_t constraintArray = ap_lincons1_array_make(env,6);
+
+        // x >= 3
+        ap_linexpr1_t expr = ap_linexpr1_make(env,AP_LINEXPR_SPARSE,1);
+        ap_lincons1_t cons = ap_lincons1_make(AP_CONS_SUPEQ,&expr,NULL);
+
+        ap_lincons1_set_list(&cons,
+                             AP_COEFF_S_INT,1,"x",
+                             AP_CST_S_INT,-3,
+                             AP_END);
+
+        ap_lincons1_array_set(&constraintArray,0,&cons);
+
+        // x <= 5
+        expr = ap_linexpr1_make(env,AP_LINEXPR_SPARSE,1);
+        cons = ap_lincons1_make(AP_CONS_SUPEQ,&expr,NULL);
+
+        ap_lincons1_set_list(&cons,
+                             AP_COEFF_S_INT,-1,"x",
+                             AP_CST_S_INT,5,
+                             AP_END);
+
+        ap_lincons1_array_set(&constraintArray,1,&cons);
+
+        // y >= -2
+        expr = ap_linexpr1_make(env,AP_LINEXPR_SPARSE,1);
+        cons = ap_lincons1_make(AP_CONS_SUPEQ,&expr,NULL);
+
+        ap_lincons1_set_list(&cons,
+                             AP_COEFF_S_INT,1,"y",
+                             AP_CST_S_INT,2,
+                             AP_END);
+
+        ap_lincons1_array_set(&constraintArray,2,&cons);
+
+        // y <= 2
+        expr = ap_linexpr1_make(env,AP_LINEXPR_SPARSE,1);
+        cons = ap_lincons1_make(AP_CONS_SUPEQ,&expr,NULL);
+
+        ap_lincons1_set_list(&cons,
+                             AP_COEFF_S_INT,-1,"y",
+                             AP_CST_S_INT,2,
+                             AP_END);
+
+        ap_lincons1_array_set(&constraintArray,3,&cons);
+
+        // a = 2x + 3y, i.e. a - 2x - 3y = 0
+        expr = ap_linexpr1_make(env,AP_LINEXPR_SPARSE,3);
+        cons = ap_lincons1_make(AP_CONS_EQ,&expr,NULL);
+
+        ap_lincons1_set_list(&cons,
+                             AP_COEFF_S_INT,1,"a",
+                             AP_COEFF_S_INT,-2,"x",
+                             AP_COEFF_S_INT,-3,"y",
+                             AP_CST_S_INT,0,
+                             AP_END);
+
+        ap_lincons1_array_set(&constraintArray,4,&cons);
+
+        // b = 2y, i.e. b - 2y = 0
+        expr = ap_linexpr1_make(env,AP_LINEXPR_SPARSE,2);
+        cons = ap_lincons1_make(AP_CONS_EQ,&expr,NULL);
+
+        ap_lincons1_set_list(&cons,
+                             AP_COEFF_S_INT,1,"b",
+                             AP_COEFF_S_INT,-2,"y",
+                             AP_CST_S_INT,0,
+                             AP_END);
+
+        ap_lincons1_array_set(&constraintArray,5,&cons);
+
+        // Create the abstract value
+        ap_abstract1_t av1 = ap_abstract1_of_lincons_array(man,env,&constraintArray);
+        fprintf(stdout,"Affine transformation AV:\n");
+        ap_abstract1_fprint(stdout,man,&av1);
+
+        // Free stuff
+        ap_lincons1_array_clear(&constraintArray);
+        ap_abstract1_clear(man, &av1);
+        ap_environment_free(env);
+        ap_manager_free(man);
+    }
 };
 
 //
