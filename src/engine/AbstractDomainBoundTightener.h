@@ -16,6 +16,7 @@
 #ifndef __AbstractDomainBoundTightener_h__
 #define __AbstractDomainBoundTightener_h__
 
+#include "Debug.h"
 #include "MStringf.h"
 #include "NeuronIndex.h"
 #include "PiecewiseLinearFunctionType.h"
@@ -75,10 +76,20 @@ public:
             printf( "Starting affine transformation for layer %u\n", _currentLayer );
             performAffineTransformation();
 
-            exit( 1 );
+            printf( "Currently known bounds:\n" );
+            for ( unsigned i = 0; i < (*_layerSizes)[1]; ++i )
+            {
+                printf( "ws_1_%u: [%lf, %lf]\n", i, _lowerBoundsWeightedSums[1][i],
+                        _upperBoundsWeightedSums[1][i] );
+            }
 
-            // Apply the activation function
-            applyActivationFunction();
+             // exit( 1 );
+
+            // Apply the activation function, except for the output layer
+            if ( _currentLayer != _numberOfLayers - 1 )
+                applyActivationFunction();
+
+            exit( 1 );
         }
 
         deallocate();
@@ -121,29 +132,8 @@ private:
         unsigned previousLayerSize = (*_layerSizes)[_currentLayer - 1];
         unsigned currentLayerSize = (*_layerSizes)[_currentLayer];
 
-        // Create the variable names and allocate the environment
-        char **variables = new char *[previousLayerSize + currentLayerSize];
-        for ( unsigned i = 0; i < previousLayerSize; ++i )
-        {
-            String varName = activationResultVariableToString( NeuronIndex( _currentLayer - 1, i ) ).ascii();
-            variables[i] = new char[varName.length() + 1];
-            strncpy( variables[i], varName.ascii(), varName.length() );
-            variables[i][varName.length()] = '\0';
-        }
-        for ( unsigned i = 0; i < currentLayerSize; ++i )
-        {
-            String varName = weightedSumVariableToString( NeuronIndex( _currentLayer, i ) ).ascii();
-            variables[i + previousLayerSize] = new char[varName.length() + 1];
-            strncpy( variables[i + previousLayerSize], varName.ascii(), varName.length() );
-            variables[i + previousLayerSize][varName.length()] = '\0';
-        }
-
-        ap_environment_t *apronEnvironment = ap_environment_alloc( NULL,
-                                                                   0,
-                                                                   (void **)&variables[0],
-                                                                   previousLayerSize + currentLayerSize );
-
-        ap_lincons1_array_t constraintArray = ap_lincons1_array_make( apronEnvironment, ( 2 * previousLayerSize ) + currentLayerSize );
+        ap_lincons1_array_t constraintArray = ap_lincons1_array_make( _apronEnvironment,
+                                                                      ( 2 * previousLayerSize ) + currentLayerSize );
 
         // Bounds for the previous layer
         for ( unsigned i = 0; i < previousLayerSize; ++i )
@@ -152,7 +142,7 @@ private:
             double ub = _upperBoundsActivations[_currentLayer - 1][i];
 
             // ws - lb >= 0
-            ap_linexpr1_t exprLb = ap_linexpr1_make( apronEnvironment,
+            ap_linexpr1_t exprLb = ap_linexpr1_make( _apronEnvironment,
                                                      AP_LINEXPR_SPARSE,
                                                      1 );
             ap_lincons1_t consLb = ap_lincons1_make( AP_CONS_SUPEQ,
@@ -160,7 +150,7 @@ private:
                                                      NULL );
 
             ap_lincons1_set_list( &consLb,
-                                  AP_COEFF_S_INT, 1, variables[i],
+                                  AP_COEFF_S_INT, 1, activationResultVariableToString( NeuronIndex( _currentLayer - 1, i ) ).ascii(),
                                   AP_CST_S_DOUBLE, -lb,
                                   AP_END );
 
@@ -168,7 +158,7 @@ private:
 
 
             // - ws + ub >= 0
-            ap_linexpr1_t exprUb = ap_linexpr1_make( apronEnvironment,
+            ap_linexpr1_t exprUb = ap_linexpr1_make( _apronEnvironment,
                                                      AP_LINEXPR_SPARSE,
                                                      1 );
             ap_lincons1_t consUb = ap_lincons1_make( AP_CONS_SUPEQ,
@@ -176,7 +166,7 @@ private:
                                                      NULL );
 
             ap_lincons1_set_list( &consUb,
-                                  AP_COEFF_S_INT, -1, variables[i],
+                                  AP_COEFF_S_INT, -1, activationResultVariableToString( NeuronIndex( _currentLayer - 1, i ) ).ascii(),
                                   AP_CST_S_DOUBLE, ub,
                                   AP_END );
 
@@ -186,7 +176,7 @@ private:
         // Weight equations
         for ( unsigned i = 0; i < currentLayerSize; ++i )
         {
-            ap_linexpr1_t expr = ap_linexpr1_make( apronEnvironment,
+            ap_linexpr1_t expr = ap_linexpr1_make( _apronEnvironment,
                                                    AP_LINEXPR_SPARSE,
                                                    previousLayerSize + 1 );
             ap_lincons1_t cons = ap_lincons1_make( AP_CONS_EQ,
@@ -195,7 +185,7 @@ private:
 
             // Add the target weighted sum variable and the bias
             ap_lincons1_set_list( &cons,
-                                  AP_COEFF_S_INT, -1, variables[previousLayerSize + i],
+                                  AP_COEFF_S_INT, -1, weightedSumVariableToString( NeuronIndex( _currentLayer, i ) ).ascii(),
                                   AP_CST_S_DOUBLE, (*_bias)[NeuronIndex( _currentLayer, i )],
                                   AP_END );
 
@@ -203,7 +193,7 @@ private:
             {
                 double weight = _weights[_currentLayer - 1][j * currentLayerSize + i];
                 ap_lincons1_set_list( &cons,
-                                      AP_COEFF_S_DOUBLE, weight, variables[j],
+                                      AP_COEFF_S_DOUBLE, weight, activationResultVariableToString( NeuronIndex( _currentLayer - 1, j ) ).ascii(),
                                       AP_END );
             }
 
@@ -211,30 +201,137 @@ private:
             ap_lincons1_array_set( &constraintArray, previousLayerSize * 2 + i, &cons );
         }
 
-        for ( unsigned i = 0; i < previousLayerSize + currentLayerSize; ++i )
-            delete[] variables[i];
-        delete[] variables;
+        _wsAbstractValue = ap_abstract1_of_lincons_array( _apronManager,
+                                                          _apronEnvironment,
+                                                          &constraintArray );
+
+        fprintf(stdout,"WS av:\n");
+        ap_abstract1_fprint(stdout,_apronManager,&_wsAbstractValue);
 
         ap_lincons1_array_clear( &constraintArray );
-        ap_environment_free( apronEnvironment );
     }
 
     void applyActivationFunction()
     {
+        unsigned currentLayerSize = (*_layerSizes)[_currentLayer];
+
+        // For now, we assume that all activation functions are ReLUs
+        DEBUG({
+                for ( unsigned i = 0; i < currentLayerSize; ++i )
+                {
+                    NeuronIndex index( _currentLayer, i );
+                    ASSERT( (*_neuronToActivationFunction).exists( index ) );
+                    ASSERT( (*_neuronToActivationFunction).at( index ) == PiecewiseLinearFunctionType::RELU );
+                }
+            });
+
+        // Process one neuron at a time
+        for ( unsigned currentNeuron = 0; currentNeuron < currentLayerSize; ++currentNeuron )
+        {
+            ap_lincons1_array_t activeConstraintArray = ap_lincons1_array_make( _apronEnvironment, 1 );
+
+            ap_linexpr1_t activeExpr = ap_linexpr1_make( _apronEnvironment, AP_LINEXPR_SPARSE, 1 );
+            ap_lincons1_t activeCons = ap_lincons1_make( AP_CONS_SUPEQ, &activeExpr, NULL );
+
+            // Weighted sum >= 0
+            ap_lincons1_set_list( &activeCons,
+                                  AP_COEFF_S_INT,1, weightedSumVariableToString( NeuronIndex( _currentLayer, currentNeuron ) ).ascii(),
+                                  AP_END);
+
+            ap_lincons1_array_set( &activeConstraintArray, 0, &activeCons );
+
+            ap_abstract1_t activeConstraintAbstractValue = ap_abstract1_of_lincons_array( _apronManager, _apronEnvironment, &activeConstraintArray );
+
+            fprintf(stdout,"active constraint:\n");
+            ap_abstract1_fprint(stdout,_apronManager,&activeConstraintAbstractValue);
+
+            // Meet the weighted sum abstract value with the active cosntraint
+
+            bool notDestructive = false;
+            ap_abstract1_t meet = ap_abstract1_meet( _apronManager,
+                                                     notDestructive,
+                                                     &_wsAbstractValue,
+                                                     &activeConstraintAbstractValue );
+
+            fprintf(stdout,"result of meet:\n");
+            ap_abstract1_fprint(stdout,_apronManager,&meet);
+
+            exit( 1 );
+            // For the active case, the active case is the identity
+            // function, so no addition processing is required.
+        }
     }
 
+    ap_abstract1_t _wsAbstractValue;
     ap_manager_t *_apronManager;
     char *_apronVariables;
+
+    char **_variableNames;
+    unsigned _totalNumberOfVariables;
+
+    ap_environment_t *_apronEnvironment;
 
     void allocate()
     {
         printf( "Allocate starting...\n" );
         _apronManager = box_manager_alloc();
         printf( "\t\tDone!\n" );
+
+        // Count the total number of variables
+        _totalNumberOfVariables = 0;
+        for ( unsigned i = 0; i < _numberOfLayers; ++i )
+        {
+            _totalNumberOfVariables += (*_layerSizes)[i];
+            if ( ( i != 0 ) && ( i != _numberOfLayers - 1 ) )
+                _totalNumberOfVariables += (*_layerSizes)[i];
+        }
+
+        // Allocate the array
+        _variableNames = new char *[_totalNumberOfVariables];
+
+        // Populate the array
+        unsigned counter = 0;
+        for ( unsigned i = 0; i < _numberOfLayers; ++i )
+        {
+            for ( unsigned j = 0; j < (*_layerSizes)[i]; ++j )
+            {
+                NeuronIndex index( i, j );
+
+                if ( i != 0 )
+                {
+                    String wsVarName = weightedSumVariableToString( index );
+                    _variableNames[counter] = new char[wsVarName.length() + 1];
+                    strncpy( _variableNames[counter], wsVarName.ascii(), wsVarName.length() );
+                    _variableNames[counter][wsVarName.length()] = '\0';
+                    ++counter;
+                }
+
+                if ( i != _numberOfLayers - 1 )
+                {
+                    String arVarName = activationResultVariableToString( index );
+                    _variableNames[counter] = new char[arVarName.length() + 1];
+                    strncpy( _variableNames[counter], arVarName.ascii(), arVarName.length() );
+                    _variableNames[counter][arVarName.length()] = '\0';
+                    ++counter;
+                }
+            }
+        }
+
+        _apronEnvironment = ap_environment_alloc( NULL,
+                                                  0,
+                                                  (void **)&_variableNames[0],
+                                                  _totalNumberOfVariables );
+
     }
 
     void deallocate()
     {
+        ap_environment_free( _apronEnvironment );
+
+        for ( unsigned i = 0; i < _totalNumberOfVariables; ++i )
+            delete[] _variableNames[i];
+        delete[] _variableNames;
+
         printf( "Deallocate starting...\n" );
         ap_manager_free( _apronManager );
         printf( "\t\tDone!\n" );
