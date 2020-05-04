@@ -280,15 +280,27 @@ private:
                                                            &_currentAV,
                                                            &activeAV );
 
+            printf( "--- Applying activation function --- \n");
+
+            printf( "meet active:\n" );
+            ap_abstract1_fprint( stdout, _apronManager, &meetActive );
+
             ap_abstract1_t meetInactive = ap_abstract1_meet( _apronManager,
                                                              notDestructive,
                                                              &_currentAV,
                                                              &inactiveAV );
 
+            printf( "\nmeet inactive:\n" );
+            ap_abstract1_fprint( stdout, _apronManager, &meetInactive );
+
+
             _currentAV = ap_abstract1_join( _apronManager,
                                             notDestructive,
                                             &meetActive,
                                             &meetInactive );
+
+            printf( "\nnew AV:\n" );
+            ap_abstract1_fprint( stdout, _apronManager, &_currentAV );
 
             exit( 0 );
         }
