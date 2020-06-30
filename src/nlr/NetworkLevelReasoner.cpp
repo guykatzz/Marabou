@@ -261,6 +261,14 @@ InputQuery NetworkLevelReasoner::generateInputQuery()
     for ( unsigned i = 0; i < outputLayer->getSize(); ++i )
         result.markOutputVariable( outputLayer->neuronToVariable( i ), i );
 
+    // Store any known bounds of the input layer
+    for ( unsigned i = 0; i < inputLayer->getSize(); ++i )
+    {
+        unsigned variable = inputLayer->neuronToVariable( i );
+        result.setLowerBound( variable, inputLayer->getLb( i ) );
+        result.setUpperBound( variable, inputLayer->getUb( i ) );
+    }
+
     return result;
 }
 

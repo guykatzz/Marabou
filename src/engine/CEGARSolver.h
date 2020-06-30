@@ -18,6 +18,7 @@
 
 #include "Engine.h"
 #include "InputQuery.h"
+#include "Layer.h"
 #include "Options.h"
 
 class CEGARSolver
@@ -64,6 +65,16 @@ private:
     {
         _baseQuery = query;
         _baseQuery.constructNetworkLevelReasoner();
+
+        // Store the bounds for the input variables
+        NLR::Layer *inputLayer = (NLR::Layer *)_baseQuery.getNetworkLevelReasoner()->getLayer( 0 );
+        for ( unsigned i = 0; i < inputLayer->getSize(); ++i )
+        {
+            unsigned variable = inputLayer->neuronToVariable( i );
+            inputLayer->setLb( i, query.getLowerBound( variable ) );
+            inputLayer->setUb( i, query.getUpperBound( variable ) );
+        }
+
         _baseQuery.getNetworkLevelReasoner()->dumpTopology();
     }
 

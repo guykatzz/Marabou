@@ -417,12 +417,12 @@ void InputQuery::printAllBounds() const
     for ( unsigned i = 0; i < _numberOfVariables; ++i )
     {
         printf( "\tx%u: [", i );
-        if ( _lowerBounds.exists( i ) )
+        if ( _lowerBounds.exists( i ) && _lowerBounds[i] != FloatUtils::negativeInfinity() )
             printf( "%lf, ", _lowerBounds[i] );
         else
             printf( "-INF, " );
 
-        if ( _upperBounds.exists( i ) )
+        if ( _upperBounds.exists( i ) && _upperBounds[i] != FloatUtils::infinity() )
             printf( "%lf]", _upperBounds[i] );
         else
             printf( "+INF]" );
@@ -471,8 +471,8 @@ void InputQuery::dump() const
     for ( unsigned i = 0; i < _numberOfVariables; ++i )
     {
         printf( "\t %u: [%s, %s]\n", i,
-                _lowerBounds.exists( i ) ? Stringf( "%lf", _lowerBounds[i] ).ascii() : "-inf",
-                _upperBounds.exists( i ) ? Stringf( "%lf", _upperBounds[i] ).ascii() : "inf" );
+                _lowerBounds.exists( i ) && _lowerBounds[i] != FloatUtils::negativeInfinity() ? Stringf( "%lf", _lowerBounds[i] ).ascii() : "-inf",
+                _upperBounds.exists( i ) && _upperBounds[i] != FloatUtils::infinity() ? Stringf( "%lf", _upperBounds[i] ).ascii() : "inf" );
     }
 
     printf( "Constraints:\n" );
