@@ -72,7 +72,7 @@ void Marabou::prepareInputQuery()
         }
 
         printf( "InputQuery: %s\n", inputQueryFilePath.ascii() );
-        _inputQuery = QueryLoader::loadQuery(inputQueryFilePath);
+        _inputQuery = QueryLoader::loadQuery( inputQueryFilePath );
     }
     else
     {
@@ -90,6 +90,7 @@ void Marabou::prepareInputQuery()
         // For now, assume the network is given in ACAS format
         _acasParser = new AcasParser( networkFilePath );
         _acasParser->generateQuery( _inputQuery );
+        _inputQuery.constructNetworkLevelReasoner();
 
         /*
           Step 2: extract the property in question
@@ -117,6 +118,14 @@ void Marabou::prepareInputQuery()
             splitThreshold = GlobalConfiguration::CONSTRAINT_VIOLATION_THRESHOLD;
         }
         _engine.setConstraintViolationThreshold( splitThreshold );
+    }
+
+    String queryDumpFilePath = Options::get()->getString( Options::QUERY_DUMP_FILE );
+    if ( queryDumpFilePath.length() > 0 )
+    {
+        _inputQuery.saveQuery( queryDumpFilePath );
+        printf( "\nInput query successfully dumped to file\n" );
+        exit( 0 );
     }
 }
 
