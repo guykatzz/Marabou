@@ -251,6 +251,16 @@ InputQuery NetworkLevelReasoner::generateInputQuery()
     for ( const auto &it : _layerIndexToLayer )
         generateInputQueryForLayer( result, *it.second );
 
+    // Mark the input variables
+    const Layer *inputLayer = _layerIndexToLayer[0];
+    for ( unsigned i = 0; i < inputLayer->getSize(); ++i )
+        result.markInputVariable( inputLayer->neuronToVariable( i ), i );
+
+    // Mark the output variables
+    const Layer *outputLayer = _layerIndexToLayer[_layerIndexToLayer.size() - 1];
+    for ( unsigned i = 0; i < outputLayer->getSize(); ++i )
+        result.markOutputVariable( outputLayer->neuronToVariable( i ), i );
+
     return result;
 }
 
