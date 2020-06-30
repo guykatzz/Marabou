@@ -16,7 +16,9 @@
 #ifndef __CEGARSolver_h__
 #define __CEGARSolver_h__
 
+#include "Engine.h"
 #include "InputQuery.h"
+#include "Options.h"
 
 class CEGARSolver
 {
@@ -37,11 +39,13 @@ public:
             if ( sat() && !spurious() )
             {
                 // Truly SAT
+                printf( "\n\nSAT\n" );
                 return;
             }
             else if ( unsat() )
             {
                 // Truly UNSAT
+                printf( "\n\nUNSAT\n" );
                 return;
             }
 
@@ -51,6 +55,8 @@ public:
 
 private:
     InputQuery _baseQuery;
+    InputQuery _currentQuery;
+    Engine::ExitCode _engineExitCode;
 
     void storeBaseQuery( const InputQuery &query )
     {
@@ -65,25 +71,42 @@ private:
 
     void createInitialAbstraction()
     {
+        _currentQuery = _baseQuery;
     }
 
     void solve()
     {
+        Engine engine;
+
+        if ( engine.processInputQuery( _currentQuery ) )
+            engine.solve( Options::get()->getInt( Options::TIMEOUT ) );
+
+        _engineExitCode = engine.getExitCode();
+
+        if ( _engineExitCode != Engine::SAT &&
+             _engineExitCode != Engine::UNSAT )
+        {
+            printf( "Error! Unsupported return code by engine\n" );
+            exit( 1 );
+        }
+
+        if ( _engineExitCode == Engine::SAT )
+            engine.extractSolution( _currentQuery );
     }
 
     bool sat()
     {
-        return false;
+        return _engineExitCode == Engine::SAT;
     }
 
     bool spurious()
     {
-        return true;
+        return false;
     }
 
     bool unsat()
     {
-        return true;
+        return _engineExitCode == Engine::UNSAT;
     }
 
     void refine()
