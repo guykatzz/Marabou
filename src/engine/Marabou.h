@@ -46,6 +46,11 @@ private:
     void solveQuery();
 
     /*
+      Attempt to solve the query using a cegar loop
+    */
+    void cegarLoop();
+
+    /*
       Display the results
     */
     void displayResults( unsigned long long microSecondsElapsed ) const;

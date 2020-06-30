@@ -15,13 +15,14 @@
  **/
 
 #include "AcasParser.h"
-#include "GlobalConfiguration.h"
+#include "CEGARSolver.h"
 #include "File.h"
+#include "GlobalConfiguration.h"
 #include "MStringf.h"
 #include "Marabou.h"
+#include "MarabouError.h"
 #include "Options.h"
 #include "PropertyParser.h"
-#include "MarabouError.h"
 #include "QueryLoader.h"
 
 #ifdef _WIN32
@@ -121,11 +122,23 @@ void Marabou::prepareInputQuery()
 
 void Marabou::solveQuery()
 {
-    if ( _engine.processInputQuery( _inputQuery ) )
-        _engine.solve( Options::get()->getInt( Options::TIMEOUT ) );
+    if ( Options::get()->getBool( Options::CEGAR ) )
+        cegarLoop();
+    else
+    {
+        if ( _engine.processInputQuery( _inputQuery ) )
+            _engine.solve( Options::get()->getInt( Options::TIMEOUT ) );
 
-    if ( _engine.getExitCode() == Engine::SAT )
-        _engine.extractSolution( _inputQuery );
+        if ( _engine.getExitCode() == Engine::SAT )
+            _engine.extractSolution( _inputQuery );
+    }
+}
+
+void Marabou::cegarLoop()
+{
+    CEGARSolver cegarSolver;
+    cegarSolver.run( _inputQuery );
+    exit( 0 );
 }
 
 void Marabou::displayResults( unsigned long long microSecondsElapsed ) const
