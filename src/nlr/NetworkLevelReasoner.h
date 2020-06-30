@@ -136,6 +136,11 @@ public:
     List<PiecewiseLinearConstraint *> getConstraintsInTopologicalOrder();
     void addConstraintInTopologicalOrder( PiecewiseLinearConstraint *constraint );
 
+    /*
+      Generate an input query from the network topology
+    */
+    InputQuery generateInputQuery();
+
 private:
     Map<unsigned, Layer *> _layerIndexToLayer;
     const ITableau *_tableau;
@@ -146,6 +151,10 @@ private:
     void freeMemoryIfNeeded();
 
     List<PiecewiseLinearConstraint *> _constraintsInTopologicalOrder;
+
+    void generateInputQueryForLayer( InputQuery &inputQuery, const Layer &layer );
+    void generateInputQueryForWeightedSumLayer( InputQuery &inputQuery, const Layer &layer );
+    void generateInputQueryForReluLayer( InputQuery &inputQuery, const Layer &layer );
 };
 
 } // namespace NLR

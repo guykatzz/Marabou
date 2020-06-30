@@ -16,12 +16,14 @@
 #include "AbsoluteValueConstraint.h"
 #include "Debug.h"
 #include "FloatUtils.h"
+#include "InputQuery.h"
 #include "LPFormulator.h"
 #include "MILPFormulator.h"
 #include "MStringf.h"
 #include "MarabouError.h"
 #include "NLRError.h"
 #include "NetworkLevelReasoner.h"
+#include "ReluConstraint.h"
 #include "ReluConstraint.h"
 #include <cstring>
 
@@ -229,6 +231,87 @@ List<PiecewiseLinearConstraint *> NetworkLevelReasoner::getConstraintsInTopologi
 void NetworkLevelReasoner::addConstraintInTopologicalOrder( PiecewiseLinearConstraint *constraint )
 {
     _constraintsInTopologicalOrder.append( constraint );
+}
+
+InputQuery NetworkLevelReasoner::generateInputQuery()
+{
+    printf( "NLR: generateInputQuery starting\n" );
+
+    printf( "Number of layers: %u\n", _layerIndexToLayer.size() );
+
+    InputQuery result;
+
+    // Number of variables
+    unsigned numberOfVariables = 0;
+    for ( const auto &it : _layerIndexToLayer )
+        numberOfVariables += it.second->getSize();
+    result.setNumberOfVariables( numberOfVariables );
+
+    // Handle the various layers
+    for ( const auto &it : _layerIndexToLayer )
+        generateInputQueryForLayer( result, *it.second );
+
+    return result;
+}
+
+void NetworkLevelReasoner::generateInputQueryForLayer( InputQuery &inputQuery,
+                                                       const Layer &layer )
+{
+    printf( "NLR constructing InputQuery; layer %u\n", layer.getLayerIndex() );
+
+    switch ( layer.getLayerType() )
+    {
+    case Layer::INPUT:
+        break;
+
+    case Layer::WEIGHTED_SUM:
+        generateInputQueryForWeightedSumLayer( inputQuery, layer );
+        break;
+
+    case Layer::RELU:
+        generateInputQueryForReluLayer( inputQuery, layer );
+        break;
+
+    default:
+        printf( "Layer type not yet supported!\n" );
+        exit( 1 );
+        break;
+    }
+}
+
+void NetworkLevelReasoner::generateInputQueryForReluLayer( InputQuery &inputQuery, const Layer &layer )
+{
+    for ( unsigned i = 0; i < layer.getSize(); ++i )
+    {
+        NeuronIndex sourceIndex = *layer.getActivationSources( i ).begin();
+        const Layer *sourceLayer = _layerIndexToLayer[sourceIndex._layer];
+
+        ReluConstraint *relu = new ReluConstraint( sourceLayer->neuronToVariable( sourceIndex._neuron ), layer.neuronToVariable( i ) );
+
+        inputQuery.addPiecewiseLinearConstraint( relu );
+    }
+}
+
+void NetworkLevelReasoner::generateInputQueryForWeightedSumLayer( InputQuery &inputQuery, const Layer &layer )
+{
+    for ( unsigned i = 0; i < layer.getSize(); ++i )
+    {
+        Equation eq;
+        eq.setScalar( -layer.getBias( i ) );
+        eq.addAddend( -1, layer.neuronToVariable( i ) );
+
+        for ( const auto &it : layer.getSourceLayers() )
+        {
+            const Layer *sourceLayer = _layerIndexToLayer[it.first];
+            for ( unsigned j = 0; j < sourceLayer->getSize(); ++j )
+            {
+                double coefficient = layer.getWeight( sourceLayer->getLayerIndex(), j, i );
+                eq.addAddend( coefficient, sourceLayer->neuronToVariable( j ) );
+            }
+        }
+
+        inputQuery.addEquation( eq );
+    }
 }
 
 } // namespace NLR

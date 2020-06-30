@@ -26,6 +26,8 @@ public:
 
     void run( InputQuery &query )
     {
+        printf( "CEGARSolver::run called\n" );
+
         storeBaseQuery( query );
 
         preprocessQuery();
@@ -71,7 +73,17 @@ private:
 
     void createInitialAbstraction()
     {
-        _currentQuery = _baseQuery;
+        //        _currentQuery = _baseQuery;
+        _currentQuery = _baseQuery.getNetworkLevelReasoner()->generateInputQuery();
+
+        printf( "Dumping the base query...\n" );
+        _baseQuery.dump();
+
+        printf( "\n\n*********\n\n" );
+
+        printf( "Dumping the restored query...\n" );
+        _currentQuery.dump();
+
     }
 
     void solve()
