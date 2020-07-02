@@ -61,6 +61,15 @@ private:
     InputQuery _currentQuery;
     Engine::ExitCode _engineExitCode;
 
+    enum NeuronType {
+        POS_INC = 0,
+        POS_DEC = 1,
+        NEG_INC = 2,
+        NEG_DEC = 3,
+    };
+
+    Map<NLR::NeuronIndex, NeuronType> _indexToType;
+
     void storeBaseQuery( const InputQuery &query )
     {
         _baseQuery = query;
@@ -80,6 +89,43 @@ private:
 
     void preprocessQuery()
     {
+        // Clone the NLR of the base query
+        NLR::NetworkLevelReasoner *nlr = new NLR::NetworkLevelReasoner;
+        _baseQuery.getNetworkLevelReasoner()->storeIntoOther( *nlr );
+
+        unsigned numberOfLayers = nlr->getNumberOfLayers();
+
+        // All neurons in the output layer are POS_INC, by convention
+        const NLR::Layer *lastLayer = nlr->getLayer( numberOfLayers - 1 );
+        for ( unsigned i = 0; i < lastLayer->getSize(); ++i )
+            _indexToType[NLR::NeuronIndex( numberOfLayers - 1, i )] = POS_INC;
+
+        // Now, start handling the intermediate layers
+        for ( unsigned i = numberOfLayers - 2; i > 0; --i )
+            preprocessIntermediateLayer( *nlr, i );
+
+        delete nlr;
+    }
+
+    void preprocessIntermediateLayer( NLR::NetworkLevelReasoner &nlr,
+                                      unsigned layer )
+    {
+        NLR::Layer *previousLayer = (NLR::Layer *)nlr.getLayer( layer - 1 );
+        NLR::Layer *thisLayer = (NLR::Layer *)nlr.getLayer( layer );
+        NLR::Layer *nextLayer = (NLR::Layer *)nlr.getLayer( layer + 1 );
+
+        unsigned originalSize = thisLayer->getSize();
+
+        NLR::Layer preprocessedLayer = new NLR::Layer( thisLayer->getLayerIndex(),
+                                                       thisLayer->getLayerType(),
+                                                       4 * originalSize,
+                                                       &nlr );
+
+        for ( unsigned i = 0; i < originalSize; ++i )
+        {
+            // the i'th neuron is mapped to neurons 4i .. 4i + 3
+        }
+
     }
 
     void createInitialAbstraction()
