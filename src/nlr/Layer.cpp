@@ -192,6 +192,8 @@ void Layer::addSourceLayer( unsigned layerNumber, unsigned layerSize )
 
     if ( _type == WEIGHTED_SUM )
     {
+        printf( "Allocating weight arrays\n" );
+
         _layerToWeights[layerNumber] = new double[layerSize * _size];
         _layerToPositiveWeights[layerNumber] = new double[layerSize * _size];
         _layerToNegativeWeights[layerNumber] = new double[layerSize * _size];
@@ -228,7 +230,14 @@ void Layer::removeWeight( unsigned sourceLayer,
                           unsigned sourceNeuron,
                           unsigned targetNeuron )
 {
+    printf( "Remove weight called. Source layer: %u, source neuron: %u, target neuron: %u\n",
+            sourceLayer, sourceNeuron, targetNeuron );
+
     unsigned index = sourceNeuron * _size + targetNeuron;
+
+    printf( "index = %u\n", index );
+    printf( "arrages have source layer: %u\n", _layerToWeights.exists( sourceLayer ) );
+
     _layerToWeights[sourceLayer][index] = 0;
     _layerToPositiveWeights[sourceLayer][index] = 0;
     _layerToNegativeWeights[sourceLayer][index] = 0;

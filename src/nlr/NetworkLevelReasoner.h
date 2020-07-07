@@ -141,6 +141,12 @@ public:
     */
     InputQuery generateInputQuery();
 
+    void replaceLayer( unsigned index, Layer *newLayer )
+    {
+        delete _layerIndexToLayer[index];
+        _layerIndexToLayer[index] = newLayer;
+    }
+
 private:
     Map<unsigned, Layer *> _layerIndexToLayer;
     const ITableau *_tableau;
