@@ -224,6 +224,16 @@ void Layer::setWeight( unsigned sourceLayer, unsigned sourceNeuron, unsigned tar
     }
 }
 
+void Layer::removeWeight( unsigned sourceLayer,
+                          unsigned sourceNeuron,
+                          unsigned targetNeuron )
+{
+    unsigned index = sourceNeuron * _size + targetNeuron;
+    _layerToWeights[sourceLayer][index] = 0;
+    _layerToPositiveWeights[sourceLayer][index] = 0;
+    _layerToNegativeWeights[sourceLayer][index] = 0;
+}
+
 double Layer::getWeight( unsigned sourceLayer,
                          unsigned sourceNeuron,
                          unsigned targetNeuron ) const

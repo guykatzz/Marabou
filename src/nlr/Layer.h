@@ -60,6 +60,9 @@ public:
     double getWeight( unsigned sourceLayer,
                       unsigned sourceNeuron,
                       unsigned targetNeuron ) const;
+    void removeWeight( unsigned sourceLayer,
+                       unsigned sourceNeuron,
+                       unsigned targetNeuron );
 
     void setBias( unsigned neuron, double bias );
     double getBias( unsigned neuron ) const;

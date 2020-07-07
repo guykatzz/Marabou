@@ -102,15 +102,23 @@ private:
 
         // Now, start handling the intermediate layers
         for ( unsigned i = numberOfLayers - 2; i > 0; --i )
-            preprocessIntermediateLayer( *nlr, i );
+        {
+            if ( nlr->getLayer( i )->getLayerType() == NLR::Layer::WEIGHTED_SUM )
+                preprocessIntermediateWSLayer( *nlr, i );
+            else if ( nlr->getLayer( i )->getLayerType() == NLR::Layer::RELU )
+                preprocessIntermediateReluLayer( *nlr, i );
+            else
+            {
+                printf( "Error! Unsupported layer!\n" );
+                exit( 1 );
+            }
+        }
 
         delete nlr;
     }
 
-    void preprocessIntermediateLayer( NLR::NetworkLevelReasoner &nlr,
-                                      unsigned layer )
+    void preprocessIntermediateReluLayer( NLR::NetworkLevelReasoner &nlr, unsigned layer )
     {
-        NLR::Layer *previousLayer = (NLR::Layer *)nlr.getLayer( layer - 1 );
         NLR::Layer *thisLayer = (NLR::Layer *)nlr.getLayer( layer );
         NLR::Layer *nextLayer = (NLR::Layer *)nlr.getLayer( layer + 1 );
 
@@ -123,9 +131,96 @@ private:
 
         for ( unsigned i = 0; i < originalSize; ++i )
         {
-            // the i'th neuron is mapped to neurons 4i .. 4i + 3
-        }
+            /*
+              the i'th neuron is mapped to neurons 4i .. 4i + 3
 
+              Neuron 4i    : pos neuron, feeding into INC neurons (POS INC)
+              Neuron 4i + 1: pos neuron, feeding into DEC neurons (POS DEC)
+              Neuron 4i + 2: neg neuron, feeding into INC neurons (NEG DEC)
+              Neuron 4i + 3: neg neuron, feeding into DEC neurons (NEG INC)
+            */
+
+            // Mark the source neuron for each ReLU
+            preprocessedLayer.addActivationSource( layer - 1, i    , i );
+            preprocessedLayer.addActivationSource( layer - 1, i + 1, i );
+            preprocessedLayer.addActivationSource( layer - 1, i + 2, i );
+            preprocessedLayer.addActivationSource( layer - 1, i + 3, i );
+
+            // Prune the outgoing edges according to the categories
+            for ( unsigned j = 0; j < nextLayer->getSize(); ++j )
+            {
+                switch ( j % 4 )
+                {
+                case 0:
+                case 3:
+                    /*
+                      The target is INC. Only maintain edges from
+                      <POS,INC> and <NEG,DEC>
+                    */
+                    nextLayer->removeWeight( layer, i + 1, j );
+                    nextLayer->removeWeight( layer, i + 3, j );
+                    break;
+
+                case 1:
+                case 2:
+                    /*
+                      The target is DEC. Only maintain edges from
+                      <POS,DEC> and <NEG,INC>
+                    */
+                    nextLayer->removeWeight( layer, i    , j );
+                    nextLayer->removeWeight( layer, i + 2, j );
+                    break;
+
+                default:
+                    printf( "Unreachable!\n" );
+                    exit( 1 );
+                }
+            }
+        }
+    }
+
+    void preprocessIntermediateWSLayer( NLR::NetworkLevelReasoner &nlr,
+                                        unsigned layer )
+    {
+        NLR::Layer *previousLayer = (NLR::Layer *)nlr.getLayer( layer - 1 );
+        NLR::Layer *thisLayer = (NLR::Layer *)nlr.getLayer( layer );
+
+        unsigned originalSize = thisLayer->getSize();
+
+        NLR::Layer preprocessedLayer = new NLR::Layer( thisLayer->getLayerIndex(),
+                                                       thisLayer->getLayerType(),
+                                                       4 * originalSize,
+                                                       &nlr );
+
+        for ( unsigned i = 0; i < originalSize; ++i )
+        {
+            /*
+              the i'th neuron is mapped to neurons 4i .. 4i + 3
+
+              Neuron 4i    : pos neuron, feeding into INC neurons
+              Neuron 4i + 1: pos neuron, feeding into DEC neurons
+              Neuron 4i + 2: neg neuron, feeding into INC neurons
+              Neuron 4i + 3: neg neuron, feeding into DEC neurons
+            */
+
+            for ( unsigned j = 0; j < previousLayer->getSize(); ++j )
+            {
+                double weight = thisLayer->getWeight( layer - 1, j, i );
+
+                preprocessedLayer.setWeight( layer - 1, j, 4 * i    , weight );
+                preprocessedLayer.setWeight( layer - 1, j, 4 * i + 1, weight );
+                preprocessedLayer.setWeight( layer - 1, j, 4 * i + 2, weight );
+                preprocessedLayer.setWeight( layer - 1, j, 4 * i + 3, weight );
+            }
+
+            // Duplicate the bias
+            double bias = thisLayer->getBias( i );
+
+            preprocessedLayer.setBias( 4 * i    , bias );
+            preprocessedLayer.setBias( 4 * i + 1, bias );
+            preprocessedLayer.setBias( 4 * i + 2, bias );
+            preprocessedLayer.setBias( 4 * i + 3, bias );
+        }
     }
 
     void createInitialAbstraction()
