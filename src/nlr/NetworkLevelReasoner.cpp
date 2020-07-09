@@ -275,7 +275,7 @@ InputQuery NetworkLevelReasoner::generateInputQuery()
 void NetworkLevelReasoner::generateInputQueryForLayer( InputQuery &inputQuery,
                                                        const Layer &layer )
 {
-    printf( "NLR constructing InputQuery; layer %u\n", layer.getLayerIndex() );
+    printf( "NLR constructing InputQuery: layer %u\n", layer.getLayerIndex() );
 
     switch ( layer.getLayerType() )
     {
@@ -303,15 +303,20 @@ void NetworkLevelReasoner::generateInputQueryForReluLayer( InputQuery &inputQuer
     {
         NeuronIndex sourceIndex = *layer.getActivationSources( i ).begin();
         const Layer *sourceLayer = _layerIndexToLayer[sourceIndex._layer];
-
         ReluConstraint *relu = new ReluConstraint( sourceLayer->neuronToVariable( sourceIndex._neuron ), layer.neuronToVariable( i ) );
-
         inputQuery.addPiecewiseLinearConstraint( relu );
     }
 }
 
 void NetworkLevelReasoner::generateInputQueryForWeightedSumLayer( InputQuery &inputQuery, const Layer &layer )
 {
+    printf( "\tNLR working on WS layer. Size: %u. Number of sources: %u\n", layer.getSize(), layer.getSourceLayers().size() );
+
+    for ( const auto &it : _layerIndexToLayer )
+    {
+        printf( "\tLayer %u: %p\n", it.first, it.second );
+    }
+
     for ( unsigned i = 0; i < layer.getSize(); ++i )
     {
         Equation eq;
@@ -321,6 +326,7 @@ void NetworkLevelReasoner::generateInputQueryForWeightedSumLayer( InputQuery &in
         for ( const auto &it : layer.getSourceLayers() )
         {
             const Layer *sourceLayer = _layerIndexToLayer[it.first];
+
             for ( unsigned j = 0; j < sourceLayer->getSize(); ++j )
             {
                 double coefficient = layer.getWeight( sourceLayer->getLayerIndex(), j, i );

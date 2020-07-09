@@ -34,6 +34,8 @@ public:
         preprocessQuery();
 
         printf( "Preprocessing is complete!\n" );
+
+
         exit( 1 );
 
         createInitialAbstraction();
@@ -120,7 +122,61 @@ private:
             }
         }
 
+        // Assign variable indices to all nodes
+        unsigned counter = nlr->getLayer( 0 )->getSize();
+        for ( unsigned i = 1; i < numberOfLayers; ++i )
+        {
+            NLR::Layer *layer = (NLR::Layer *)nlr->getLayer( i );
+            for ( unsigned j = 0; j < layer->getSize(); ++j )
+                layer->setNeuronVariable( j, counter++ );
+        }
+
+        printf( "Done preprocessing, now creating the actual query from the NLR\n" );
+
         _currentQuery = nlr->generateInputQuery();
+
+        // Sanity: use the NLR to evaluate the network
+        double input[5] = { 0.2, 0.2, 0.2, 0.2, 0.2 };
+        double output[5];
+
+        nlr->evaluate( input, output );
+
+        printf( "Evaluation result:\n" );
+        for ( unsigned i = 0; i < 5; ++i )
+        {
+            printf( "\5output[%u] = %.5lf\n", i, output[i] );
+        }
+
+        _baseQuery.getNetworkLevelReasoner()->evaluate( input, output );
+
+        printf( "And on the base query:\n" );
+        for ( unsigned i = 0; i < 5; ++i )
+        {
+            printf( "\5output[%u] = %.5lf\n", i, output[i] );
+        }
+
+        // printf( "Weights from layer 2 to 3 in original:\n" );
+        // for ( unsigned i = 0; i < 50; ++i )
+        // {
+        //     printf( "\tTarget neuron %u:\n", i );
+        //     for ( unsigned j = 0; j < 50; ++j )
+        //     {
+        //         printf( "\t\tEdge from %u: %.5lf\n", j,
+        //                 _baseQuery.getNetworkLevelReasoner()->getLayer( 3 )->getWeight( 2, j, i ) );
+        //     }
+        // }
+
+        // printf( "Weights from layer 2 to 3 in preprocessed:\n" );
+        // for ( unsigned i = 0; i < 200; ++i )
+        // {
+        //     printf( "\tTarget neuron %u:\n", i );
+        //     for ( unsigned j = 0; j < 200; ++j )
+        //     {
+        //         printf( "\t\tEdge from %u: %.5lf\n", j,
+        //                 nlr->getLayer( 3 )->getWeight( 2, j, i ) );
+        //     }
+        // }
+
         delete nlr;
     }
 
@@ -197,13 +253,27 @@ private:
 
             // Mark the source neuron for each ReLU
             preprocessedLayer->addActivationSource( layer - 1, 4 * i    , 4 * i );
-            preprocessedLayer->addActivationSource( layer - 1, 4 * i + 1, 4 * i );
-            preprocessedLayer->addActivationSource( layer - 1, 4 * i + 2, 4 * i );
-            preprocessedLayer->addActivationSource( layer - 1, 4 * i + 3, 4 * i );
+            preprocessedLayer->addActivationSource( layer - 1, 4 * i + 1, 4 * i + 1 );
+            preprocessedLayer->addActivationSource( layer - 1, 4 * i + 2, 4 * i + 2 );
+            preprocessedLayer->addActivationSource( layer - 1, 4 * i + 3, 4 * i + 3 );
 
             // Prune the outgoing edges according to the categories
             for ( unsigned j = 0; j < nextLayer->getSize(); ++j )
             {
+                double weight = nextLayer->getWeight( layer, 4 * i, j );
+                if ( weight > 0 )
+                {
+                    // Remove this edge from the NEG neurons
+                    nextLayer->removeWeight( layer, 4 * i + 2, j );
+                    nextLayer->removeWeight( layer, 4 * i + 3, j );
+                }
+                else
+                {
+                    // Remove this edge from the POS neurons
+                    nextLayer->removeWeight( layer, 4 * i    , j );
+                    nextLayer->removeWeight( layer, 4 * i + 1, j );
+                }
+
                 if ( !nextLayerIsOutput )
                 {
                     switch ( j % 4 )
@@ -235,12 +305,9 @@ private:
                 }
                 else
                 {
-                    printf( "Next layer is output, removing weights...\n" );
                     // The next layer is the output layer, all neurons are pos
-                    printf( "Output layer address is: %p\n", nextLayer );
                     nextLayer->removeWeight( layer, 4 * i + 1, j );
                     nextLayer->removeWeight( layer, 4 * i + 3, j );
-                    printf( "Next layer is output, removing weights... DONE\n" );
                 }
             }
         }

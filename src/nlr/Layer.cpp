@@ -179,6 +179,13 @@ void Layer::computeAssignment()
     // prevail.
     for ( const auto &eliminated : _eliminatedNeurons )
         _assignment[eliminated.first] = eliminated.second;
+
+    // printf( "\nComputed assignment for layer %u:\n", _layerIndex );
+    // for ( unsigned i = 0; i < _size; ++i )
+    // {
+    //     printf( "\tNeuron %u: %.5lf\n", i, _assignment[i] );
+    // }
+    // printf( "\n" );
 }
 
 void Layer::addSourceLayer( unsigned layerNumber, unsigned layerSize )
@@ -230,14 +237,7 @@ void Layer::removeWeight( unsigned sourceLayer,
                           unsigned sourceNeuron,
                           unsigned targetNeuron )
 {
-    printf( "Remove weight called. Source layer: %u, source neuron: %u, target neuron: %u\n",
-            sourceLayer, sourceNeuron, targetNeuron );
-
     unsigned index = sourceNeuron * _size + targetNeuron;
-
-    printf( "index = %u\n", index );
-    printf( "arrages have source layer: %u\n", _layerToWeights.exists( sourceLayer ) );
-
     _layerToWeights[sourceLayer][index] = 0;
     _layerToPositiveWeights[sourceLayer][index] = 0;
     _layerToNegativeWeights[sourceLayer][index] = 0;
