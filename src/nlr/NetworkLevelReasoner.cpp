@@ -56,6 +56,12 @@ void NetworkLevelReasoner::addLayer( unsigned layerIndex, Layer::Type type, unsi
     _layerIndexToLayer[layerIndex] = layer;
 }
 
+void NetworkLevelReasoner::addLayer( unsigned layerIndex, Layer *layer )
+{
+    ASSERT( !_layerIndexToLayer.exists( layerIndex ) );
+    _layerIndexToLayer[layerIndex] = layer;
+}
+
 void NetworkLevelReasoner::addLayerDependency( unsigned sourceLayer, unsigned targetLayer )
 {
     _layerIndexToLayer[targetLayer]->addSourceLayer( sourceLayer, _layerIndexToLayer[sourceLayer]->getSize() );

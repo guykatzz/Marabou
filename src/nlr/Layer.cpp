@@ -1416,4 +1416,9 @@ double Layer::getEliminatedNeuronValue( unsigned neuron ) const
     return _eliminatedNeurons[neuron];
 }
 
+void Layer::setLayerOwner( LayerOwner *layerOwner )
+{
+    _layerOwner = layerOwner;
+}
+
 } // namespace NLR

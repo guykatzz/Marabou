@@ -118,6 +118,11 @@ public:
     void dump() const;
     static String typeToString( Type type );
 
+    /*
+      Update the layer owner
+    */
+    void setLayerOwner( LayerOwner *layerOwner );
+
 private:
     unsigned _layerIndex;
     Type _type;

@@ -43,6 +43,7 @@ public:
       Populate the NLR by specifying the network's topology.
     */
     void addLayer( unsigned layerIndex, Layer::Type type, unsigned layerSize );
+    void addLayer( unsigned layerIndex, Layer *layer );
     void addLayerDependency( unsigned sourceLayer, unsigned targetLayer );
     void setWeight( unsigned sourceLayer,
                     unsigned sourceNeuron,

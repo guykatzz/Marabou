@@ -35,10 +35,9 @@ public:
 
         printf( "Preprocessing is complete!\n" );
 
+        createInitialAbstraction();
 
         exit( 1 );
-
-        createInitialAbstraction();
 
         while ( true )
         {
@@ -62,7 +61,17 @@ public:
     }
 
 private:
+    /*
+      The original query provided by the user
+    */
     InputQuery _baseQuery;
+
+    /*
+      The preprocessed query; equivalent to _baseQuery, roughly 4
+      times larger
+    */
+    InputQuery _preprocessedQuery;
+
     InputQuery _currentQuery;
     Engine::ExitCode _engineExitCode;
 
@@ -133,48 +142,26 @@ private:
 
         printf( "Done preprocessing, now creating the actual query from the NLR\n" );
 
-        _currentQuery = nlr->generateInputQuery();
+        _preprocessedQuery = nlr->generateInputQuery();
 
         // Sanity: use the NLR to evaluate the network
-        double input[5] = { 0.2, 0.2, 0.2, 0.2, 0.2 };
-        double output[5];
+        // double input[5] = { 0.2, 0.2, 0.2, 0.2, 0.2 };
+        // double output[5];
 
-        nlr->evaluate( input, output );
+        // nlr->evaluate( input, output );
 
-        printf( "Evaluation result:\n" );
-        for ( unsigned i = 0; i < 5; ++i )
-        {
-            printf( "\5output[%u] = %.5lf\n", i, output[i] );
-        }
-
-        _baseQuery.getNetworkLevelReasoner()->evaluate( input, output );
-
-        printf( "And on the base query:\n" );
-        for ( unsigned i = 0; i < 5; ++i )
-        {
-            printf( "\5output[%u] = %.5lf\n", i, output[i] );
-        }
-
-        // printf( "Weights from layer 2 to 3 in original:\n" );
-        // for ( unsigned i = 0; i < 50; ++i )
+        // printf( "Evaluation result:\n" );
+        // for ( unsigned i = 0; i < 5; ++i )
         // {
-        //     printf( "\tTarget neuron %u:\n", i );
-        //     for ( unsigned j = 0; j < 50; ++j )
-        //     {
-        //         printf( "\t\tEdge from %u: %.5lf\n", j,
-        //                 _baseQuery.getNetworkLevelReasoner()->getLayer( 3 )->getWeight( 2, j, i ) );
-        //     }
+        //     printf( "\5output[%u] = %.5lf\n", i, output[i] );
         // }
 
-        // printf( "Weights from layer 2 to 3 in preprocessed:\n" );
-        // for ( unsigned i = 0; i < 200; ++i )
+        // _baseQuery.getNetworkLevelReasoner()->evaluate( input, output );
+
+        // printf( "And on the base query:\n" );
+        // for ( unsigned i = 0; i < 5; ++i )
         // {
-        //     printf( "\tTarget neuron %u:\n", i );
-        //     for ( unsigned j = 0; j < 200; ++j )
-        //     {
-        //         printf( "\t\tEdge from %u: %.5lf\n", j,
-        //                 nlr->getLayer( 3 )->getWeight( 2, j, i ) );
-        //     }
+        //     printf( "\5output[%u] = %.5lf\n", i, output[i] );
         // }
 
         delete nlr;
@@ -193,13 +180,9 @@ private:
                                                        originalSize,
                                                        &nlr );
 
-        printf( "OLD output layer address is: %p\n", thisLayer );
-        printf( "NEW output layer address is: %p\n", preprocessedLayer );
-
         printf( "pp output layer called. Output layer size: %u. Previous layer size: %u\n", originalSize, previousLayer->getSize() );
         preprocessedLayer->addSourceLayer( layer - 1, previousLayer->getSize() * 4 );
         printf( "---\n" );
-
 
         for ( unsigned i = 0; i < originalSize; ++i )
         {
@@ -380,17 +363,437 @@ private:
 
     void createInitialAbstraction()
     {
-        //        _currentQuery = _baseQuery;
-        _currentQuery = _baseQuery.getNetworkLevelReasoner()->generateInputQuery();
+        /*
+          Begin replacing the layers. Each intermediate layer has 4-tuples of neurons:
 
-        printf( "Dumping the base query...\n" );
-        _baseQuery.dump();
+              Neuron 4i    : <pos, inc>
+              Neuron 4i + 1: <pos, dec>
+              Neuron 4i + 2: <neg, dec>
+              Neuron 4i + 3: <neg, inc>
 
-        printf( "\n\n*********\n\n" );
+          These are transformed into just 4 neurons, in the same order.
+        */
 
-        printf( "Dumping the restored query...\n" );
-        _currentQuery.dump();
+        /*
+          Assumption: the following layers are not touched:
 
+          1. The input layer
+          2. The first hidden layer (WS)
+          3. The second hidden layer (ReLU)
+          4. The output layer
+        */
+        const NLR::NetworkLevelReasoner *preprocessedNlr = _preprocessedQuery.getNlr();
+
+        NLR::NetworkLevelReasoner *nlr = new NLR::NetworkLevelReasoner;
+        _preprocessedQuery.getNetworkLevelReasoner()->storeIntoOther( *nlr );
+
+        unsigned numberOfLayers = nlr->getNumberOfLayers();
+
+        // Layers 0-2 are copied as-is, with just the layer owner replaced
+        for ( unsigned i = 0; i < 2; ++i )
+        {
+            NLR::Layer *newLayer = new NLR::Layer( preprocessedNlr->getLayer( i ) );
+            newLayer->setLayerOwner( nlr );
+            nlr->addLayer( i, newLayer );
+        }
+
+        // Next, layers 4 - ( numLayers - 1 ) are abstracted to saturation
+        for ( unsigned i = 3; i < numberOfLayers - 1; ++i )
+        {
+            abstractLayerToSaturation( *nlr, i, *preprocessedNlr );
+        }
+    }
+
+    void abstractLayerToSaturation( NetworkLevelReasoner &nlr, unsigned layer, const NetworkLevelReasoner &preprocessedNlr )
+    {
+        NLR::Layer *previousLayer = (NLR::Layer *)nlr.getLayer( layer - 1 );
+        const NLR::Layer *concretePreviousLayer = preprocessedNlr.getLayer( layer - 1 );
+        const NLR::Layer *concreteLayer = preprocessedNlr.getLayer( layer );
+        // NLR::Layer *nextLayer = (NLR::Layer *)nlr.getLayer( layer + 1 );
+
+        NLR::Layer::Type type = concreteLayer->getLayerType();
+
+        NLR::Layer *abstractLayer = new NLR::Layer( layer, type, 4, &nlr );
+        abstractLayer->addSourceLayer( layer - 1 );
+
+        if ( type == NLR::Layer::WEIGHTED_SUM && layer != 3 )
+        {
+            /*
+              Weights are computed as maxes-of-sums or mins-of-sums::
+              1. For each concrete source neuron, compute the max/min of edges
+                 to the concrete neurons being merged
+              2. Take the sum for the edge from the abstract source neuron to
+                 the abstract target neuron
+            */
+
+            double min;
+            double max;
+            unsigned source;
+            unsigned target;
+            double sum;
+
+            /*
+              Working on abstract neuron 0, which is: pos, inc
+              Incoming edges only from pos,inc neurons (0) and neg,dec (2) neurons,
+              and into pos,inc (0) neurons
+            */
+
+            // Edges from 0 to 0
+            max = FloatUtils::negativeInfinity();
+            source = 0;
+            while ( source < concretePreviousLayer->getSize() )
+            {
+                sum = 0;
+                target = 0;
+                while ( target < concreteLayer->getSize() )
+                {
+                    sum += concreteLayer->getWeight( layer - 1, source, target );
+                    target += 4;
+                }
+
+                max = FloatUtils::max( max, sum );
+                source += 4;
+            }
+            abstractLayer->setWeight( layer - 1, 0, 0, max );
+
+            // Edges from 2 to 0
+            min = FloatUtils::infinity();
+            source = 2;
+            while ( source < concretePreviousLayer->getSize() )
+            {
+                sum = 0;
+                target = 0;
+                while ( target < concreteLayer->getSize() )
+                {
+                    sum += concreteLayer->getWeight( layer - 1, source, target );
+                    target += 4;
+                }
+
+                min = FloatUtils::min( min, sum );
+                source += 4;
+            }
+            abstractLayer->setWeight( layer - 1, 2, 0, min );
+
+            /*
+              Working on abstract neuron 1, which is: pos, dec
+              Incoming edges only from pos,dec neurons (1) and neg,inc (3) neurons,
+              and into pos,dec (1) neurons
+            */
+
+            // Edges from 1 to 1
+            min = FloatUtils::infinity();
+            source = 1;
+            while ( source < concretePreviousLayer->getSize() )
+            {
+                sum = 0;
+                target = 1;
+                while ( target < concreteLayer->getSize() )
+                {
+                    sum += concreteLayer->getWeight( layer - 1, source, target );
+                    target += 4;
+                }
+
+                min = FloatUtils::min( min, sum );
+                source += 4;
+            }
+            abstractLayer->setWeight( layer - 1, 1, 1, max );
+
+            // Edges from 3 to 1
+            max = FloatUtils::negativeInfinity();
+            source = 3;
+            while ( source < concretePreviousLayer->getSize() )
+            {
+                sum = 0;
+                target = 1;
+                while ( target < concreteLayer->getSize() )
+                {
+                    sum += concreteLayer->getWeight( layer - 1, source, target );
+                    target += 4;
+                }
+
+                max = FloatUtils::max( max, sum );
+                source += 4;
+            }
+            abstractLayer->setWeight( layer - 1, 3, 1, min );
+
+            /*
+              Working on abstract neuron 2, which is: neg, dec
+              Incoming edges only from pos,dec neurons (1) and neg,inc (3) neurons,
+              and into pos,dec (2) neurons
+            */
+
+            // Edges from 1 to 2
+            min = FloatUtils::infinity();
+            source = 1;
+            while ( source < concretePreviousLayer->getSize() )
+            {
+                sum = 0;
+                target = 2;
+                while ( target < concreteLayer->getSize() )
+                {
+                    sum += concreteLayer->getWeight( layer - 1, source, target );
+                    target += 4;
+                }
+
+                min = FloatUtils::min( min, sum );
+                source += 4;
+            }
+            abstractLayer->setWeight( layer - 1, 1, 2, max );
+
+            // Edges from 3 to 2
+            max = FloatUtils::negativeInfinity();
+            source = 3;
+            while ( source < concretePreviousLayer->getSize() )
+            {
+                sum = 0;
+                target = 2;
+                while ( target < concreteLayer->getSize() )
+                {
+                    sum += concreteLayer->getWeight( layer - 1, source, target );
+                    target += 4;
+                }
+
+                max = FloatUtils::max( max, sum );
+                source += 4;
+            }
+            abstractLayer->setWeight( layer - 1, 3, 2, min );
+
+            /*
+              Working on abstract neuron 3, which is: neg, inc
+              Incoming edges only from pos,inc neurons (0) and neg,dec (2) neurons,
+              and into neg,inc (3) neurons
+            */
+
+            // Edges from 0 to 3
+            max = FloatUtils::negativeInfinity();
+            source = 0;
+            while ( source < concretePreviousLayer->getSize() )
+            {
+                sum = 0;
+                target = 3;
+                while ( target < concreteLayer->getSize() )
+                {
+                    sum += concreteLayer->getWeight( layer - 1, source, target );
+                    target += 4;
+                }
+
+                max = FloatUtils::max( max, sum );
+                source += 4;
+            }
+            abstractLayer->setWeight( layer - 1, 0, 3, max );
+
+            // Edges from 2 to 3
+            min = FloatUtils::infinity();
+            source = 2;
+            while ( source < concretePreviousLayer->getSize() )
+            {
+                sum = 0;
+                target = 3;
+                while ( target < concreteLayer->getSize() )
+                {
+                    sum += concreteLayer->getWeight( layer - 1, source, target );
+                    target += 4;
+                }
+
+                min = FloatUtils::min( min, sum );
+                source += 4;
+            }
+            abstractLayer->setWeight( layer - 1, 2, 3, min );
+        }
+
+        else if ( type == NLR::Layer::WEIGHTED_SUM && layer == 3 )
+        {
+            // Special case, the first weighted sum layer that is processed
+            // No sums, just mins/maxes
+
+            double min;
+            double max;
+            unsigned source;
+            unsigned target;
+            double sum;
+
+            /*
+              Working on abstract neuron 0, which is: pos, inc
+              Incoming edges only from pos,inc neurons (0) and neg,dec (2) neurons,
+              and into pos,inc (0) neurons
+            */
+
+            // Edges from 0 to 0
+            source = 0;
+            while ( source < concretePreviousLayer->getSize() )
+            {
+                max = FloatUtils::negativeInfinity();
+
+                target = 0;
+                while ( target < concreteLayer->getSize() )
+                {
+                    max = FloatUtils::max( max, concreteLayer->getWeight( layer - 1, source, target ); );
+                    target += 4;
+                }
+
+                abstractLayer->setWeight( layer - 1, source, 0, max );
+                source += 4;
+            }
+
+            // Edges from 2 to 0
+            source = 2;
+            while ( source < concretePreviousLayer->getSize() )
+            {
+                min = FloatUtils::infinity();
+
+                target = 0;
+                while ( target < concreteLayer->getSize() )
+                {
+                    min = FloatUtils::min( min, concreteLayer->getWeight( layer - 1, source, target ); );
+                    target += 4;
+                }
+
+                abstractLayer->setWeight( layer - 1, source, 0, min );
+                source += 4;
+            }
+
+            /*
+              Working on abstract neuron 1, which is: pos, dec
+              Incoming edges only from pos,dec neurons (1) and neg,inc (3) neurons,
+              and into pos,dec (1) neurons
+            */
+
+            // Edges from 1 to 1
+            source = 1;
+            while ( source < concretePreviousLayer->getSize() )
+            {
+                min = FloatUtils::infinity();
+
+                target = 1;
+                while ( target < concreteLayer->getSize() )
+                {
+                    min = FloatUtils::min( min, concreteLayer->getWeight( layer - 1, source, target ); );
+                    target += 4;
+                }
+
+                abstractLayer->setWeight( layer - 1, source, 1, min );
+                source += 4;
+            }
+
+            // Edges from 3 to 1
+            source = 3;
+            while ( source < concretePreviousLayer->getSize() )
+            {
+                max = FloatUtils::negativeInfinity();
+
+                target = 1;
+                while ( target < concreteLayer->getSize() )
+                {
+                    max = FloatUtils::max( max, concreteLayer->getWeight( layer - 1, source, target ); );
+                    target += 4;
+                }
+
+                abstractLayer->setWeight( layer - 1, source, 1, max );
+                source += 4;
+            }
+
+            /*
+              Working on abstract neuron 2, which is: neg, dec
+              Incoming edges only from pos,dec neurons (1) and neg,inc (3) neurons,
+              and into pos,dec (2) neurons
+            */
+
+            // Edges from 1 to 2
+            source = 1;
+            while ( source < concretePreviousLayer->getSize() )
+            {
+                min = FloatUtils::infinity();
+
+                target = 2;
+                while ( target < concreteLayer->getSize() )
+                {
+                    min = FloatUtils::min( min, concreteLayer->getWeight( layer - 1, source, target ); );
+                    target += 4;
+                }
+
+                abstractLayer->setWeight( layer - 1, source, 2, min );
+                source += 4;
+            }
+
+            // Edges from 3 to 2
+            source = 3;
+            while ( source < concretePreviousLayer->getSize() )
+            {
+                max = FloatUtils::negativeInfinity();
+
+                target = 2;
+                while ( target < concreteLayer->getSize() )
+                {
+                    max = FloatUtils::max( max, concreteLayer->getWeight( layer - 1, source, target ); );
+                    target += 4;
+                }
+
+                abstractLayer->setWeight( layer - 1, source, 2, max );
+                source += 4;
+            }
+
+            /*
+              Working on abstract neuron 3, which is: neg, inc
+              Incoming edges only from pos,inc neurons (0) and neg,dec (2) neurons,
+              and into neg,inc (3) neurons
+            */
+
+            // Edges from 0 to 3
+            source = 0;
+            while ( source < concretePreviousLayer->getSize() )
+            {
+                max = FloatUtils::negativeInfinity();
+
+                target = 3;
+                while ( target < concreteLayer->getSize() )
+                {
+                    max = FloatUtils::max( max, concreteLayer->getWeight( layer - 1, source, target ); );
+                    target += 4;
+                }
+
+                abstractLayer->setWeight( layer - 1, source, 3, max );
+                source += 4;
+            }
+
+            // Edges from 2 to 3
+            source = 2;
+            while ( source < concretePreviousLayer->getSize() )
+            {
+                min = FloatUtils::infinity();
+
+                target = 3;
+                while ( target < concreteLayer->getSize() )
+                {
+                    min = FloatUtils::min( min, concreteLayer->getWeight( layer - 1, source, target ); );
+                    target += 4;
+                }
+
+                abstractLayer->setWeight( layer - 1, source, 3, min );
+                source += 4;
+            }
+        }
+
+        /*
+          TODOs:
+          - double check, especially for first set of cases, the order of sum/max
+          - Handle output layer?
+          - biases
+          - check...
+        */
+
+        else if ( type == NLR::Layer::RELU )
+        {
+            // Map neuron i to neuron i...
+            for ( unsigned i = 0; i < 4; ++i )
+                abstractLayer->addActivationSource( layer - 1, i, i );
+        }
+        else
+        {
+            printf( "Error, layer type %u not supported!\n", type );
+            exit( 1 );
+        }
+
+        nlr->addLayer( layer, abstractLayer );
     }
 
     void solve()
