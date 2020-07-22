@@ -78,11 +78,47 @@ private:
     enum NeuronType {
         POS_INC = 0,
         POS_DEC = 1,
-        NEG_INC = 2,
-        NEG_DEC = 3,
+        NEG_DEC = 2,
+        NEG_INC = 3,
     };
 
+    enum WeightOperator {
+       ZERO = 0,
+       MAX = 1,
+       MIN = 2,
+    };
+
+    Map<NeuronType, Map<NeuronType,unsigned>> _weightOperators;
+
+    void initializeWeightOperators()
+    {
+        // Edges outgoing from a POS_INC neuron
+        _weightOperators[POS_INC][POS_INC] = MAX;
+        _weightOperators[POS_INC][POS_DEC] = ZERO;
+        _weightOperators[POS_INC][NEG_DEC] = ZERO;
+        _weightOperators[POS_INC][NEG_INC] = MAX;
+
+        // Edges outgoing from a POS_DEC neuron
+        _weightOperators[POS_DEC][POS_INC] = ZERO;
+        _weightOperators[POS_DEC][POS_DEC] = MIN;
+        _weightOperators[POS_DEC][NEG_DEC] = MIN;
+        _weightOperators[POS_DEC][NEG_INC] = ZERO;
+
+        // Edges outgoing from a NEG_DEC neuron
+        _weightOperators[NEG_DEC][POS_INC] = MIN;
+        _weightOperators[NEG_DEC][POS_DEC] = ZERO;
+        _weightOperators[NEG_DEC][NEG_DEC] = ZERO;
+        _weightOperators[NEG_DEC][NEG_INC] = MIN;
+
+        // Edges outgoing from a NEG_INC neuron
+        _weightOperators[NEG_INC][POS_INC] = ZERO;
+        _weightOperators[NEG_INC][POS_DEC] = MAX;
+        _weightOperators[NEG_INC][NEG_DEC] = MAX;
+        _weightOperators[NEG_INC][NEG_INC] = ZERO;
+    }
+
     Map<NLR::NeuronIndex, NeuronType> _indexToType;
+
 
     void storeBaseQuery( const InputQuery &query )
     {
@@ -419,11 +455,7 @@ private:
         if ( type == NLR::Layer::WEIGHTED_SUM && layer != 3 )
         {
             /*
-              Weights are computed as maxes-of-sums or mins-of-sums::
-              1. For each concrete source neuron, compute the max/min of edges
-                 to the concrete neurons being merged
-              2. Take the sum for the edge from the abstract source neuron to
-                 the abstract target neuron
+              Weights are computed as max-of-sums or min-of-sums
             */
 
             double min;
@@ -432,173 +464,47 @@ private:
             unsigned target;
             double sum;
 
-            /*
-              Working on abstract neuron 0, which is: pos, inc
-              Incoming edges only from pos,inc neurons (0) and neg,dec (2) neurons,
-              and into pos,inc (0) neurons
-            */
-
-            // Edges from 0 to 0
-            max = FloatUtils::negativeInfinity();
-            source = 0;
-            while ( source < concretePreviousLayer->getSize() )
+            for ( unsigned sourceClass = 0; sourceClass < 4; ++sourceClass )
             {
-                sum = 0;
-                target = 0;
-                while ( target < concreteLayer->getSize() )
+                for ( unsigned targetClass = 0; targetClass < 4; ++targetClass )
                 {
-                    sum += concreteLayer->getWeight( layer - 1, source, target );
-                    target += 4;
+                    if ( _weightOperators[sourceClass][targetClass] == ZERO )
+                        continue;
+
+                    max = FloatUtils::negativeInfinity();
+                    min = FloatUtils::infinity();
+
+                    source = sourceClass;
+                    while ( source < concretePreviousLayer->getSize() )
+                    {
+                        sum = 0;
+                        target = targetClass;
+                        while ( target < concreteLayer->getSize() )
+                        {
+                            sum += concreteLayer->getWeight( layer - 1, source, target );
+                            target += 4;
+                        }
+                    }
+
+                    if ( _weightOperators[sourceClass][targetClass] == MAX )
+                        max = FloatUtils::max( max, sum );
+                    else
+                        min = FloatUtils::min( min, sum );
+
+                    source += 4;
                 }
 
-                max = FloatUtils::max( max, sum );
-                source += 4;
+                if ( _weightOperators[sourceClass][targetClass] == MAX )
+                    abstractLayer->setWeight( layer - 1,
+                                              sourceClass,
+                                              targetClass,
+                                              max );
+                else ( _weightOperators[sourceClass][targetClass] == MIN )
+                    abstractLayer->setWeight( layer - 1,
+                                              sourceClass,
+                                              targetClass,
+                                              min );
             }
-            abstractLayer->setWeight( layer - 1, 0, 0, max );
-
-            // Edges from 2 to 0
-            min = FloatUtils::infinity();
-            source = 2;
-            while ( source < concretePreviousLayer->getSize() )
-            {
-                sum = 0;
-                target = 0;
-                while ( target < concreteLayer->getSize() )
-                {
-                    sum += concreteLayer->getWeight( layer - 1, source, target );
-                    target += 4;
-                }
-
-                min = FloatUtils::min( min, sum );
-                source += 4;
-            }
-            abstractLayer->setWeight( layer - 1, 2, 0, min );
-
-            /*
-              Working on abstract neuron 1, which is: pos, dec
-              Incoming edges only from pos,dec neurons (1) and neg,inc (3) neurons,
-              and into pos,dec (1) neurons
-            */
-
-            // Edges from 1 to 1
-            min = FloatUtils::infinity();
-            source = 1;
-            while ( source < concretePreviousLayer->getSize() )
-            {
-                sum = 0;
-                target = 1;
-                while ( target < concreteLayer->getSize() )
-                {
-                    sum += concreteLayer->getWeight( layer - 1, source, target );
-                    target += 4;
-                }
-
-                min = FloatUtils::min( min, sum );
-                source += 4;
-            }
-            abstractLayer->setWeight( layer - 1, 1, 1, max );
-
-            // Edges from 3 to 1
-            max = FloatUtils::negativeInfinity();
-            source = 3;
-            while ( source < concretePreviousLayer->getSize() )
-            {
-                sum = 0;
-                target = 1;
-                while ( target < concreteLayer->getSize() )
-                {
-                    sum += concreteLayer->getWeight( layer - 1, source, target );
-                    target += 4;
-                }
-
-                max = FloatUtils::max( max, sum );
-                source += 4;
-            }
-            abstractLayer->setWeight( layer - 1, 3, 1, min );
-
-            /*
-              Working on abstract neuron 2, which is: neg, dec
-              Incoming edges only from pos,dec neurons (1) and neg,inc (3) neurons,
-              and into pos,dec (2) neurons
-            */
-
-            // Edges from 1 to 2
-            min = FloatUtils::infinity();
-            source = 1;
-            while ( source < concretePreviousLayer->getSize() )
-            {
-                sum = 0;
-                target = 2;
-                while ( target < concreteLayer->getSize() )
-                {
-                    sum += concreteLayer->getWeight( layer - 1, source, target );
-                    target += 4;
-                }
-
-                min = FloatUtils::min( min, sum );
-                source += 4;
-            }
-            abstractLayer->setWeight( layer - 1, 1, 2, max );
-
-            // Edges from 3 to 2
-            max = FloatUtils::negativeInfinity();
-            source = 3;
-            while ( source < concretePreviousLayer->getSize() )
-            {
-                sum = 0;
-                target = 2;
-                while ( target < concreteLayer->getSize() )
-                {
-                    sum += concreteLayer->getWeight( layer - 1, source, target );
-                    target += 4;
-                }
-
-                max = FloatUtils::max( max, sum );
-                source += 4;
-            }
-            abstractLayer->setWeight( layer - 1, 3, 2, min );
-
-            /*
-              Working on abstract neuron 3, which is: neg, inc
-              Incoming edges only from pos,inc neurons (0) and neg,dec (2) neurons,
-              and into neg,inc (3) neurons
-            */
-
-            // Edges from 0 to 3
-            max = FloatUtils::negativeInfinity();
-            source = 0;
-            while ( source < concretePreviousLayer->getSize() )
-            {
-                sum = 0;
-                target = 3;
-                while ( target < concreteLayer->getSize() )
-                {
-                    sum += concreteLayer->getWeight( layer - 1, source, target );
-                    target += 4;
-                }
-
-                max = FloatUtils::max( max, sum );
-                source += 4;
-            }
-            abstractLayer->setWeight( layer - 1, 0, 3, max );
-
-            // Edges from 2 to 3
-            min = FloatUtils::infinity();
-            source = 2;
-            while ( source < concretePreviousLayer->getSize() )
-            {
-                sum = 0;
-                target = 3;
-                while ( target < concreteLayer->getSize() )
-                {
-                    sum += concreteLayer->getWeight( layer - 1, source, target );
-                    target += 4;
-                }
-
-                min = FloatUtils::min( min, sum );
-                source += 4;
-            }
-            abstractLayer->setWeight( layer - 1, 2, 3, min );
         }
 
         else if ( type == NLR::Layer::WEIGHTED_SUM && layer == 3 )
@@ -612,164 +518,41 @@ private:
             unsigned target;
             double sum;
 
-            /*
-              Working on abstract neuron 0, which is: pos, inc
-              Incoming edges only from pos,inc neurons (0) and neg,dec (2) neurons,
-              and into pos,inc (0) neurons
-            */
-
-            // Edges from 0 to 0
-            source = 0;
-            while ( source < concretePreviousLayer->getSize() )
+            for ( unsigned sourceClass = 0; sourceClass < 4; ++sourceClass )
             {
-                max = FloatUtils::negativeInfinity();
-
-                target = 0;
-                while ( target < concreteLayer->getSize() )
+                for ( unsigned targetClass = 0; targetClass < 4; ++targetClass )
                 {
-                    max = FloatUtils::max( max, concreteLayer->getWeight( layer - 1, source, target ); );
-                    target += 4;
+                    if ( _weightOperators[sourceClass][targetClass] == ZERO )
+                        continue;
+
+
+                    max = FloatUtils::negativeInfinity();
+                    min = FloatUtils::infinity();
+
+                    source = sourceClass;
+                    while ( source < concretePreviousLayer->getSize() )
+                    {
+                        target = targetClass;
+                        while ( target < concreteLayer->getSize() )
+                        {
+                            if ( _weightOperators[sourceClass][targetClass] == MAX )
+                                max = FloatUtils::max( max,
+                                                       concreteLayer->getWeight( layer - 1, source, target ) );
+                            else
+                                min = FloatUtils::min( min,
+                                                       concreteLayer->getWeight( layer - 1, source, target ) );
+
+                            target += 4;
+                        }
+                    }
+
+                    if ( _weightOperators[sourceClass][targetClass] == MAX )
+                        abstractLayer->setWeight( layer - 1, source, target, max );
+                    else
+                        abstractLayer->setWeight( layer - 1, source, target, min );
+
+                    source += 4;
                 }
-
-                abstractLayer->setWeight( layer - 1, source, 0, max );
-                source += 4;
-            }
-
-            // Edges from 2 to 0
-            source = 2;
-            while ( source < concretePreviousLayer->getSize() )
-            {
-                min = FloatUtils::infinity();
-
-                target = 0;
-                while ( target < concreteLayer->getSize() )
-                {
-                    min = FloatUtils::min( min, concreteLayer->getWeight( layer - 1, source, target ); );
-                    target += 4;
-                }
-
-                abstractLayer->setWeight( layer - 1, source, 0, min );
-                source += 4;
-            }
-
-            /*
-              Working on abstract neuron 1, which is: pos, dec
-              Incoming edges only from pos,dec neurons (1) and neg,inc (3) neurons,
-              and into pos,dec (1) neurons
-            */
-
-            // Edges from 1 to 1
-            source = 1;
-            while ( source < concretePreviousLayer->getSize() )
-            {
-                min = FloatUtils::infinity();
-
-                target = 1;
-                while ( target < concreteLayer->getSize() )
-                {
-                    min = FloatUtils::min( min, concreteLayer->getWeight( layer - 1, source, target ); );
-                    target += 4;
-                }
-
-                abstractLayer->setWeight( layer - 1, source, 1, min );
-                source += 4;
-            }
-
-            // Edges from 3 to 1
-            source = 3;
-            while ( source < concretePreviousLayer->getSize() )
-            {
-                max = FloatUtils::negativeInfinity();
-
-                target = 1;
-                while ( target < concreteLayer->getSize() )
-                {
-                    max = FloatUtils::max( max, concreteLayer->getWeight( layer - 1, source, target ); );
-                    target += 4;
-                }
-
-                abstractLayer->setWeight( layer - 1, source, 1, max );
-                source += 4;
-            }
-
-            /*
-              Working on abstract neuron 2, which is: neg, dec
-              Incoming edges only from pos,dec neurons (1) and neg,inc (3) neurons,
-              and into pos,dec (2) neurons
-            */
-
-            // Edges from 1 to 2
-            source = 1;
-            while ( source < concretePreviousLayer->getSize() )
-            {
-                min = FloatUtils::infinity();
-
-                target = 2;
-                while ( target < concreteLayer->getSize() )
-                {
-                    min = FloatUtils::min( min, concreteLayer->getWeight( layer - 1, source, target ); );
-                    target += 4;
-                }
-
-                abstractLayer->setWeight( layer - 1, source, 2, min );
-                source += 4;
-            }
-
-            // Edges from 3 to 2
-            source = 3;
-            while ( source < concretePreviousLayer->getSize() )
-            {
-                max = FloatUtils::negativeInfinity();
-
-                target = 2;
-                while ( target < concreteLayer->getSize() )
-                {
-                    max = FloatUtils::max( max, concreteLayer->getWeight( layer - 1, source, target ); );
-                    target += 4;
-                }
-
-                abstractLayer->setWeight( layer - 1, source, 2, max );
-                source += 4;
-            }
-
-            /*
-              Working on abstract neuron 3, which is: neg, inc
-              Incoming edges only from pos,inc neurons (0) and neg,dec (2) neurons,
-              and into neg,inc (3) neurons
-            */
-
-            // Edges from 0 to 3
-            source = 0;
-            while ( source < concretePreviousLayer->getSize() )
-            {
-                max = FloatUtils::negativeInfinity();
-
-                target = 3;
-                while ( target < concreteLayer->getSize() )
-                {
-                    max = FloatUtils::max( max, concreteLayer->getWeight( layer - 1, source, target ); );
-                    target += 4;
-                }
-
-                abstractLayer->setWeight( layer - 1, source, 3, max );
-                source += 4;
-            }
-
-            // Edges from 2 to 3
-            source = 2;
-            while ( source < concretePreviousLayer->getSize() )
-            {
-                min = FloatUtils::infinity();
-
-                target = 3;
-                while ( target < concreteLayer->getSize() )
-                {
-                    min = FloatUtils::min( min, concreteLayer->getWeight( layer - 1, source, target ); );
-                    target += 4;
-                }
-
-                abstractLayer->setWeight( layer - 1, source, 3, min );
-                source += 4;
             }
         }
 
