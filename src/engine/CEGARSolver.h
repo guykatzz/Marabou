@@ -60,7 +60,8 @@ public:
         }
     }
 
-private:
+// private:
+
     /*
       The original query provided by the user
     */
@@ -89,6 +90,11 @@ private:
     };
 
     Map<NeuronType, Map<NeuronType,unsigned>> _weightOperators;
+
+    InputQuery getPreprocessedQuery()
+    {
+        return _preprocessedQuery;
+    }
 
     void initializeWeightOperators()
     {
@@ -140,6 +146,7 @@ private:
     void preprocessQuery()
     {
         // Clone the NLR of the base query
+
         NLR::NetworkLevelReasoner *nlr = new NLR::NetworkLevelReasoner;
         _baseQuery.getNetworkLevelReasoner()->storeIntoOther( *nlr );
 
@@ -179,6 +186,7 @@ private:
         printf( "Done preprocessing, now creating the actual query from the NLR\n" );
 
         _preprocessedQuery = nlr->generateInputQuery();
+        _preprocessedQuery.constructNetworkLevelReasoner();
 
         // Sanity: use the NLR to evaluate the network
         // double input[5] = { 0.2, 0.2, 0.2, 0.2, 0.2 };
@@ -347,7 +355,10 @@ private:
                                                         4 * originalSize,
                                                         &nlr );
 
-        preprocessedLayer->addSourceLayer( layer - 1, previousLayer->getSize() * 4 );
+        if ( layer > 1 )
+            preprocessedLayer->addSourceLayer( layer - 1, previousLayer->getSize() * 4 );
+        else
+            preprocessedLayer->addSourceLayer( layer - 1, previousLayer->getSize() );
 
         for ( unsigned i = 0; i < originalSize; ++i )
         {
@@ -364,34 +375,45 @@ private:
             {
                 double weight = thisLayer->getWeight( layer - 1, j, i );
 
-                preprocessedLayer->setWeight( layer - 1, 4 * j, 4 * i    , weight );
-                preprocessedLayer->setWeight( layer - 1, 4 * j, 4 * i + 1, weight );
-                preprocessedLayer->setWeight( layer - 1, 4 * j, 4 * i + 2, weight );
-                preprocessedLayer->setWeight( layer - 1, 4 * j, 4 * i + 3, weight );
+                if ( layer > 1 )
+                {
+                    preprocessedLayer->setWeight( layer - 1, 4 * j, 4 * i    , weight );
+                    preprocessedLayer->setWeight( layer - 1, 4 * j, 4 * i + 1, weight );
+                    preprocessedLayer->setWeight( layer - 1, 4 * j, 4 * i + 2, weight );
+                    preprocessedLayer->setWeight( layer - 1, 4 * j, 4 * i + 3, weight );
 
-                preprocessedLayer->setWeight( layer - 1, 4 * j + 1, 4 * i    , weight );
-                preprocessedLayer->setWeight( layer - 1, 4 * j + 1, 4 * i + 1, weight );
-                preprocessedLayer->setWeight( layer - 1, 4 * j + 1, 4 * i + 2, weight );
-                preprocessedLayer->setWeight( layer - 1, 4 * j + 1, 4 * i + 3, weight );
+                    preprocessedLayer->setWeight( layer - 1, 4 * j + 1, 4 * i    , weight );
+                    preprocessedLayer->setWeight( layer - 1, 4 * j + 1, 4 * i + 1, weight );
+                    preprocessedLayer->setWeight( layer - 1, 4 * j + 1, 4 * i + 2, weight );
+                    preprocessedLayer->setWeight( layer - 1, 4 * j + 1, 4 * i + 3, weight );
 
-                preprocessedLayer->setWeight( layer - 1, 4 * j + 2, 4 * i    , weight );
-                preprocessedLayer->setWeight( layer - 1, 4 * j + 2, 4 * i + 1, weight );
-                preprocessedLayer->setWeight( layer - 1, 4 * j + 2, 4 * i + 2, weight );
-                preprocessedLayer->setWeight( layer - 1, 4 * j + 2, 4 * i + 3, weight );
+                    preprocessedLayer->setWeight( layer - 1, 4 * j + 2, 4 * i    , weight );
+                    preprocessedLayer->setWeight( layer - 1, 4 * j + 2, 4 * i + 1, weight );
+                    preprocessedLayer->setWeight( layer - 1, 4 * j + 2, 4 * i + 2, weight );
+                    preprocessedLayer->setWeight( layer - 1, 4 * j + 2, 4 * i + 3, weight );
 
-                preprocessedLayer->setWeight( layer - 1, 4 * j + 3, 4 * i    , weight );
-                preprocessedLayer->setWeight( layer - 1, 4 * j + 3, 4 * i + 1, weight );
-                preprocessedLayer->setWeight( layer - 1, 4 * j + 3, 4 * i + 2, weight );
-                preprocessedLayer->setWeight( layer - 1, 4 * j + 3, 4 * i + 3, weight );
+                    preprocessedLayer->setWeight( layer - 1, 4 * j + 3, 4 * i    , weight );
+                    preprocessedLayer->setWeight( layer - 1, 4 * j + 3, 4 * i + 1, weight );
+                    preprocessedLayer->setWeight( layer - 1, 4 * j + 3, 4 * i + 2, weight );
+                    preprocessedLayer->setWeight( layer - 1, 4 * j + 3, 4 * i + 3, weight );
+                }
+                else
+                {
+                    preprocessedLayer->setWeight( layer - 1, j, 4 * i    , weight );
+                    preprocessedLayer->setWeight( layer - 1, j, 4 * i + 1, weight );
+                    preprocessedLayer->setWeight( layer - 1, j, 4 * i + 2, weight );
+                    preprocessedLayer->setWeight( layer - 1, j, 4 * i + 3, weight );
+                }
+
+
+                // Duplicate the bias
+                double bias = thisLayer->getBias( i );
+
+                preprocessedLayer->setBias( 4 * i    , bias );
+                preprocessedLayer->setBias( 4 * i + 1, bias );
+                preprocessedLayer->setBias( 4 * i + 2, bias );
+                preprocessedLayer->setBias( 4 * i + 3, bias );
             }
-
-            // Duplicate the bias
-            double bias = thisLayer->getBias( i );
-
-            preprocessedLayer->setBias( 4 * i    , bias );
-            preprocessedLayer->setBias( 4 * i + 1, bias );
-            preprocessedLayer->setBias( 4 * i + 2, bias );
-            preprocessedLayer->setBias( 4 * i + 3, bias );
         }
 
         nlr.replaceLayer( layer, preprocessedLayer );
