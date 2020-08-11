@@ -49,7 +49,6 @@ public:
     Layer( unsigned index, Type type, unsigned size, LayerOwner *layerOwner );
     ~Layer();
 
-    void setLayerOwner( LayerOwner *layerOwner );
     void addSourceLayer( unsigned layerNumber, unsigned layerSize );
     const Map<unsigned, unsigned> &getSourceLayers() const;
 

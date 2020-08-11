@@ -418,7 +418,7 @@ private:
           3. The second hidden layer (ReLU)
           4. The output layer
         */
-        const NLR::NetworkLevelReasoner *preprocessedNlr = _preprocessedQuery.getNlr();
+        const NLR::NetworkLevelReasoner *preprocessedNlr = _preprocessedQuery.getNetworkLevelReasoner();
 
         NLR::NetworkLevelReasoner *nlr = new NLR::NetworkLevelReasoner;
         _preprocessedQuery.getNetworkLevelReasoner()->storeIntoOther( *nlr );
@@ -440,7 +440,7 @@ private:
         }
     }
 
-    void abstractLayerToSaturation( NetworkLevelReasoner &nlr, unsigned layer, const NetworkLevelReasoner &preprocessedNlr )
+    void abstractLayerToSaturation( NLR::NetworkLevelReasoner &nlr, unsigned layer, const NLR::NetworkLevelReasoner &preprocessedNlr )
     {
         NLR::Layer *previousLayer = (NLR::Layer *)nlr.getLayer( layer - 1 );
         const NLR::Layer *concretePreviousLayer = preprocessedNlr.getLayer( layer - 1 );
@@ -450,7 +450,7 @@ private:
         NLR::Layer::Type type = concreteLayer->getLayerType();
 
         NLR::Layer *abstractLayer = new NLR::Layer( layer, type, 4, &nlr );
-        abstractLayer->addSourceLayer( layer - 1 );
+        abstractLayer->addSourceLayer( layer - 1, previousLayer->getSize() );
 
         if ( type == NLR::Layer::WEIGHTED_SUM && layer != 3 )
         {
@@ -468,7 +468,10 @@ private:
             {
                 for ( unsigned targetClass = 0; targetClass < 4; ++targetClass )
                 {
-                    if ( _weightOperators[sourceClass][targetClass] == ZERO )
+                    CEGARSolver::NeuronType sourceType = (CEGARSolver::NeuronType)sourceClass;
+                    CEGARSolver::NeuronType targetType = (CEGARSolver::NeuronType)targetClass;
+
+                    if ( _weightOperators[sourceType][targetType] == ZERO )
                         continue;
 
                     max = FloatUtils::negativeInfinity();
@@ -484,26 +487,30 @@ private:
                             sum += concreteLayer->getWeight( layer - 1, source, target );
                             target += 4;
                         }
+
+                        if ( _weightOperators[sourceType][targetType] == MAX )
+                            max = FloatUtils::max( max, sum );
+                        else
+                            min = FloatUtils::min( min, sum );
+
+                        source += 4;
                     }
 
-                    if ( _weightOperators[sourceClass][targetClass] == MAX )
-                        max = FloatUtils::max( max, sum );
-                    else
-                        min = FloatUtils::min( min, sum );
-
-                    source += 4;
+                    if ( _weightOperators[sourceType][targetType] == MAX )
+                    {
+                        abstractLayer->setWeight( layer - 1,
+                                                  sourceClass,
+                                                  targetClass,
+                                                  max );
+                    }
+                    else if ( _weightOperators[sourceType][targetType] == MIN )
+                    {
+                        abstractLayer->setWeight( layer - 1,
+                                                  sourceClass,
+                                                  targetClass,
+                                                  min );
+                    }
                 }
-
-                if ( _weightOperators[sourceClass][targetClass] == MAX )
-                    abstractLayer->setWeight( layer - 1,
-                                              sourceClass,
-                                              targetClass,
-                                              max );
-                else ( _weightOperators[sourceClass][targetClass] == MIN )
-                    abstractLayer->setWeight( layer - 1,
-                                              sourceClass,
-                                              targetClass,
-                                              min );
             }
         }
 
@@ -515,14 +522,16 @@ private:
             double min;
             double max;
             unsigned source;
-            unsigned target;
-            double sum;
+            unsigned target = 0;
 
             for ( unsigned sourceClass = 0; sourceClass < 4; ++sourceClass )
             {
                 for ( unsigned targetClass = 0; targetClass < 4; ++targetClass )
                 {
-                    if ( _weightOperators[sourceClass][targetClass] == ZERO )
+                    CEGARSolver::NeuronType sourceType = (CEGARSolver::NeuronType)sourceClass;
+                    CEGARSolver::NeuronType targetType = (CEGARSolver::NeuronType)targetClass;
+
+                    if ( _weightOperators[sourceType][targetType] == ZERO )
                         continue;
 
 
@@ -535,7 +544,7 @@ private:
                         target = targetClass;
                         while ( target < concreteLayer->getSize() )
                         {
-                            if ( _weightOperators[sourceClass][targetClass] == MAX )
+                            if ( _weightOperators[sourceType][targetType] == MAX )
                                 max = FloatUtils::max( max,
                                                        concreteLayer->getWeight( layer - 1, source, target ) );
                             else
@@ -546,7 +555,7 @@ private:
                         }
                     }
 
-                    if ( _weightOperators[sourceClass][targetClass] == MAX )
+                    if ( _weightOperators[sourceType][targetType] == MAX )
                         abstractLayer->setWeight( layer - 1, source, target, max );
                     else
                         abstractLayer->setWeight( layer - 1, source, target, min );
@@ -576,7 +585,7 @@ private:
             exit( 1 );
         }
 
-        nlr->addLayer( layer, abstractLayer );
+        nlr.addLayer( layer, abstractLayer );
     }
 
     void solve()
