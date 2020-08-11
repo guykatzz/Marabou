@@ -122,6 +122,11 @@ public:
     */
     void setLayerOwner( LayerOwner *layerOwner );
 
+    /*
+      Check whether two layers are identical
+    */
+    bool operator==( const Layer &other ) const;
+
 private:
     unsigned _layerIndex;
     Type _type;

@@ -600,4 +600,41 @@ public:
         ppNlr->evaluate( input3, &ppOutput );
         TS_ASSERT_EQUALS( output, ppOutput );
     }
+
+    void test_create_intial_abstraction()
+    {
+        InputQuery ipq = prepareInputQuery();
+        // NLR::NetworkLevelReasoner *nlr = ipq.getNetworkLevelReasoner();
+
+        CEGARSolver cegar;
+
+        TS_ASSERT_THROWS_NOTHING( cegar.storeBaseQuery( ipq ) );
+        TS_ASSERT_THROWS_NOTHING( cegar.preprocessQuery() );
+
+        InputQuery ppIpq = cegar.getPreprocessedQuery();
+        TS_ASSERT( ppIpq.getNetworkLevelReasoner() );
+        NLR::NetworkLevelReasoner *ppNlr = ppIpq.getNetworkLevelReasoner();
+
+        TS_ASSERT_THROWS_NOTHING( cegar.createInitialAbstraction() );
+
+        InputQuery abstractQuery = cegar.getCurrentQuery();
+
+        if ( !abstractQuery.getNetworkLevelReasoner() )
+            abstractQuery.constructNetworkLevelReasoner();
+
+        NLR::NetworkLevelReasoner *absNlr = abstractQuery.getNetworkLevelReasoner();
+
+        // Number of layers is unchanged
+        // TS_ASSERT_EQUALS( nlr->getNumberOfLayers(), ppNlr->getNumberOfLayers() );
+
+        // // Only one output neuron
+        // const NLR::Layer *lastLayer = ppNlr->getLayer( ppNlr->getNumberOfLayers() - 1 );
+        // TS_ASSERT_EQUALS( lastLayer->getSize(), 1U );
+        // TS_ASSERT_EQUALS( lastLayer->getLayerType(), NLR::Layer::WEIGHTED_SUM );
+
+        // Layers 0, 1 and 2 should be identical
+        TS_ASSERT( ( *ppNlr->getLayer( 0 ) ) == ( *absNlr->getLayer( 0 ) ) );
+        TS_ASSERT( ( *ppNlr->getLayer( 1 ) ) == ( *absNlr->getLayer( 1 ) ) );
+        TS_ASSERT( ( *ppNlr->getLayer( 2 ) ) == ( *absNlr->getLayer( 2 ) ) );
+    }
 };

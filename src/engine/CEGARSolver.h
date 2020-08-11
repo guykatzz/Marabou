@@ -443,36 +443,76 @@ public:
         const NLR::NetworkLevelReasoner *preprocessedNlr = _preprocessedQuery.getNetworkLevelReasoner();
 
         NLR::NetworkLevelReasoner *nlr = new NLR::NetworkLevelReasoner;
-        _preprocessedQuery.getNetworkLevelReasoner()->storeIntoOther( *nlr );
 
-        unsigned numberOfLayers = nlr->getNumberOfLayers();
+        unsigned numberOfLayers = preprocessedNlr->getNumberOfLayers();
 
         // Layers 0-2 are copied as-is, with just the layer owner replaced
-        for ( unsigned i = 0; i < 2; ++i )
+        for ( unsigned i = 0; i < 3; ++i )
         {
             NLR::Layer *newLayer = new NLR::Layer( preprocessedNlr->getLayer( i ) );
             newLayer->setLayerOwner( nlr );
             nlr->addLayer( i, newLayer );
         }
 
+        // The output layer is also copied
+        // NLR::Layer *newLayer = new NLR::Layer( preprocessedNlr->getLayer( numberOfLayers - 1 ) );
+        // newLayer->setLayerOwner( nlr );
+        // nlr->addLayer( numberOfLayers - 1, newLayer );
+
+        // printf( "Dumping temp NLR's topology\n" );
+
+        // nlr->dumpTopology();
+
+        unsigned currentIndex =
+            nlr->getLayer( 0 )->getSize() +
+            nlr->getLayer( 1 )->getSize() +
+            nlr->getLayer( 2 )->getSize();
+
         // Next, layers 4 - ( numLayers - 1 ) are abstracted to saturation
         for ( unsigned i = 3; i < numberOfLayers - 1; ++i )
         {
             abstractLayerToSaturation( *nlr, i, *preprocessedNlr );
+
+            // Index the variables
+            for ( unsigned j = 0; j < nlr->getLayer( i )->getSize(); ++j )
+                ((NLR::Layer *)nlr->getLayer( i ))->setNeuronVariable( j, currentIndex++ );
+
+            break;
+
         }
+
+        printf( "Out of the loop!\n" );
+
+        _currentQuery = nlr->generateInputQuery();
+        delete nlr;
+    }
+
+    InputQuery getCurrentQuery() const
+    {
+        return _currentQuery;
     }
 
     void abstractLayerToSaturation( NLR::NetworkLevelReasoner &nlr, unsigned layer, const NLR::NetworkLevelReasoner &preprocessedNlr )
     {
+        printf( "Abstract layer to saturation called (layer = %u)!\n", layer );
+
+        printf( "1\n" );
+
         NLR::Layer *previousLayer = (NLR::Layer *)nlr.getLayer( layer - 1 );
+                printf( "1.1\n" );
         const NLR::Layer *concretePreviousLayer = preprocessedNlr.getLayer( layer - 1 );
+                printf( "1.2\n" );
         const NLR::Layer *concreteLayer = preprocessedNlr.getLayer( layer );
         // NLR::Layer *nextLayer = (NLR::Layer *)nlr.getLayer( layer + 1 );
+printf( "2\n" );
 
         NLR::Layer::Type type = concreteLayer->getLayerType();
 
         NLR::Layer *abstractLayer = new NLR::Layer( layer, type, 4, &nlr );
         abstractLayer->addSourceLayer( layer - 1, previousLayer->getSize() );
+
+
+printf( "3\n" );
 
         if ( type == NLR::Layer::WEIGHTED_SUM && layer != 3 )
         {
@@ -540,6 +580,8 @@ public:
         {
             // Special case, the first weighted sum layer that is processed
             // No sums, just mins/maxes
+
+            printf( "Handling WS layer #3\n" );
 
             double min;
             double max;

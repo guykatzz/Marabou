@@ -1417,4 +1417,79 @@ double Layer::getEliminatedNeuronValue( unsigned neuron ) const
     return _eliminatedNeurons[neuron];
 }
 
+bool Layer::operator==( const Layer &other ) const
+{
+    printf( "1\n" );
+
+    if ( _layerIndex != other._layerIndex )
+        return false;
+
+    if ( _type != other._type )
+        return false;
+
+    if ( _size != other._size )
+        return false;
+printf( "2\n" );
+
+    if ( _sourceLayers != other._sourceLayers )
+        return false;
+
+    for ( const auto &pair : _layerToWeights )
+    {
+        if ( !other._layerToWeights.exists( pair.first ) )
+            return false;
+
+        if ( memcmp( pair.second,
+                     other._layerToWeights[pair.first],
+                     sizeof(double) * _size * _sourceLayers[pair.first] ) != 0 )
+            return false;
+    }
+
+    for ( const auto &pair : _layerToPositiveWeights )
+    {
+        if ( !other._layerToPositiveWeights.exists( pair.first ) )
+            return false;
+
+        if ( memcmp( pair.second,
+                     other._layerToPositiveWeights[pair.first],
+                     sizeof(double) * _size * _sourceLayers[pair.first] ) != 0 )
+            return false;
+    }
+
+    for ( const auto &pair : _layerToNegativeWeights )
+    {
+        if ( !other._layerToNegativeWeights.exists( pair.first ) )
+            return false;
+
+        if ( memcmp( pair.second,
+                     other._layerToNegativeWeights[pair.first],
+                     sizeof(double) * _size * _sourceLayers[pair.first] ) != 0 )
+            return false;
+    }
+
+    printf( "3\n" );
+
+    if ( ( _bias && !other._bias ) || ( !_bias && other._bias ) )
+        return false;
+
+    if ( ( _bias ) && memcmp( _bias, other._bias, sizeof(double) * _size ) != 0 )
+        return false;
+
+    if ( _neuronToActivationSources != other._neuronToActivationSources )
+        return false;
+
+    if ( _neuronToVariable != other._neuronToVariable )
+        return false;
+printf( "4\n" );
+
+    if ( _variableToNeuron != other._variableToNeuron )
+        return false;
+
+    if ( _eliminatedNeurons != other._eliminatedNeurons )
+        return false;
+printf( "5\n" );
+
+    return true;
+}
+
 } // namespace NLR
