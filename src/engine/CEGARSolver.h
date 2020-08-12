@@ -465,11 +465,6 @@ public:
             nlr->addLayer( i, newLayer );
         }
 
-        // The output layer is also copied
-        // NLR::Layer *newLayer = new NLR::Layer( preprocessedNlr->getLayer( numberOfLayers - 1 ) );
-        // newLayer->setLayerOwner( nlr );
-        // nlr->addLayer( numberOfLayers - 1, newLayer );
-
         // printf( "Dumping temp NLR's topology\n" );
 
         // nlr->dumpTopology();
@@ -479,21 +474,32 @@ public:
             nlr->getLayer( 1 )->getSize() +
             nlr->getLayer( 2 )->getSize();
 
-        // Next, layers 4 - ( numLayers - 1 ) are abstracted to saturation
-        for ( unsigned i = 3; i < numberOfLayers - 1; ++i )
+        // Remaining layers are abstracted to saturation
+        for ( unsigned i = 3; i < numberOfLayers; ++i )
         {
             abstractLayerToSaturation( *nlr, i, *preprocessedNlr );
 
             // Index the variables
             for ( unsigned j = 0; j < nlr->getLayer( i )->getSize(); ++j )
                 ((NLR::Layer *)nlr->getLayer( i ))->setNeuronVariable( j, currentIndex++ );
-
-            if ( i == 5 )
-                break;
-
         }
 
-        printf( "Out of the loop!\n" );
+        // printf( "Out of the loop!\n" );
+
+        // printf( "pp layer 6 size: %u\n", preprocessedNlr->getLayer( 6 )->getSize() );
+        // printf( "pp layer 7 prev size: %u\n", preprocessedNlr->getLayer( 7 )->getSourceLayers()[6] );
+
+
+        // // Process the output layer
+        // NLR::Layer *newLayer = new NLR::Layer( preprocessedNlr->getLayer( numberOfLayers - 1 ) );
+        // newLayer->setLayerOwner( nlr );
+        // nlr->addLayer( numberOfLayers - 1, newLayer );
+
+        // printf( "new layer size of prev: %u\n", newLayer->getSourceLayers()[6] );
+
+        // printf( "Dumping topology after construction:\n" );
+        // nlr->dumpTopology();
+
 
         _currentQuery = nlr->generateInputQuery();
         delete nlr;
@@ -515,10 +521,46 @@ public:
 
         NLR::Layer::Type type = concreteLayer->getLayerType();
 
-        NLR::Layer *abstractLayer = new NLR::Layer( layer, type, 4, &nlr );
+        unsigned newLayerSize = ( layer == preprocessedNlr.getNumberOfLayers() - 1 ) ? 1 : 4;
+        NLR::Layer *abstractLayer = new NLR::Layer( layer, type, newLayerSize, &nlr );
         abstractLayer->addSourceLayer( layer - 1, previousLayer->getSize() );
 
-        if ( type == NLR::Layer::WEIGHTED_SUM && layer != 3 )
+        if ( type == NLR::Layer::WEIGHTED_SUM && layer == preprocessedNlr.getNumberOfLayers() - 1 )
+        {
+            /*
+              Final, output layer
+            */
+
+            // The output neuron is POS,INC. Neurons 1 and 3 don't feed into it
+            abstractLayer->setWeight( layer - 1, 1, 0, 0 );
+            abstractLayer->setWeight( layer - 1, 3, 0, 0 );
+
+            // Sum computation for neuron 0
+            double sum = 0;
+            unsigned source = 0;
+            while ( source < concretePreviousLayer->getSize() )
+            {
+                sum += concreteLayer->getWeight( layer - 1, source, 0 );
+                source += 4;
+            }
+            abstractLayer->setWeight( layer - 1, 0, 0, sum );
+
+            // Sum computation for neuron 2
+            sum = 0;
+            source = 2;
+            while ( source < concretePreviousLayer->getSize() )
+            {
+                sum += concreteLayer->getWeight( layer - 1, source, 0 );
+                source += 4;
+            }
+            abstractLayer->setWeight( layer - 1, 2, 0, sum );
+
+            // Bias
+            double bias = concreteLayer->getBias( 0 );
+            abstractLayer->setBias( 0, bias );
+        }
+
+        else if ( type == NLR::Layer::WEIGHTED_SUM && layer != 3 )
         {
             /*
               Weights are computed as max-of-sums or min-of-sums

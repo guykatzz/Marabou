@@ -638,6 +638,9 @@ public:
 
         NLR::NetworkLevelReasoner *absNlr = abstractQuery.getNetworkLevelReasoner();
 
+        printf( "Dumping topology of absNlr:\n" );
+        absNlr->dumpTopology();
+
         // Number of layers is unchanged
         // TS_ASSERT_EQUALS( nlr->getNumberOfLayers(), ppNlr->getNumberOfLayers() );
 
@@ -752,5 +755,37 @@ public:
         TS_ASSERT_EQUALS( layer5->getBias( 1 ), -3 );
         TS_ASSERT_EQUALS( layer5->getBias( 2 ), -3 );
         TS_ASSERT_EQUALS( layer5->getBias( 3 ), 2 );
+
+        // Layer 6: 4 nodes, ReLUs of previous layer
+        const NLR::Layer *layer6 = absNlr->getLayer( 6 );
+
+        TS_ASSERT_EQUALS( layer6->getSize(), 4U );
+        TS_ASSERT_EQUALS( layer6->getLayerType(), NLR::Layer::RELU );
+
+        // Each relu neuron is mapped to matching node
+        for ( unsigned i = 0; i < 4; ++i )
+        {
+            TS_ASSERT_EQUALS( layer6->getActivationSources( i ).size(), 1U );
+            TS_ASSERT_EQUALS( layer6->getActivationSources( i ).begin()->_layer, 5U );
+            TS_ASSERT_EQUALS( layer6->getActivationSources( i ).begin()->_neuron, i );
+        }
+
+        // Layer 7: 1 node
+        const NLR::Layer *layer7 = absNlr->getLayer( 7 );
+
+        TS_ASSERT_EQUALS( layer7->getSize(), 1U );
+        TS_ASSERT_EQUALS( layer7->getLayerType(), NLR::Layer::WEIGHTED_SUM );
+
+        auto sourceLayers = layer7->getSourceLayers();
+
+        TS_TRACE( sourceLayers.exists( 6 ) );
+        TS_TRACE( sourceLayers[6] );
+
+        TS_ASSERT_EQUALS( layer7->getWeight( 6, 0, 0 ), 1 );
+        TS_ASSERT_EQUALS( layer7->getWeight( 6, 1, 0 ), 0 );
+        TS_ASSERT_EQUALS( layer7->getWeight( 6, 2, 0 ), -2 );
+        TS_ASSERT_EQUALS( layer7->getWeight( 6, 3, 0 ), 0 );
+
+        TS_ASSERT_EQUALS( layer7->getBias( 0 ), 0 );
     }
 };
