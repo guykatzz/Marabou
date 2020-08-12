@@ -717,6 +717,40 @@ public:
             TS_ASSERT_EQUALS( layer4->getActivationSources( i ).begin()->_neuron, i );
         }
 
-        layer3->dump();
+        // Layer 5: 4 nodes, weights determined by mins and maxes
+        const NLR::Layer *layer5 = absNlr->getLayer( 5 );
+
+        TS_ASSERT_EQUALS( layer5->getSize(), 4U );
+        TS_ASSERT_EQUALS( layer5->getLayerType(), NLR::Layer::WEIGHTED_SUM );
+
+        // Edges into x22, which is the POS,INC node of layer 5
+        TS_ASSERT_EQUALS( layer5->getWeight( 4, 0, 0 ), 4 );  // max( 1+3, 2 )
+        TS_ASSERT_EQUALS( layer5->getWeight( 4, 1, 0 ), 0 );  // 0
+        TS_ASSERT_EQUALS( layer5->getWeight( 4, 2, 0 ), -4 ); // min( -1-3, -2 )
+        TS_ASSERT_EQUALS( layer5->getWeight( 4, 3, 0 ), 0 );  // 0
+
+        // Edges into x23, which is the POS,DEC node of layer 5
+        TS_ASSERT_EQUALS( layer5->getWeight( 4, 0, 1 ), 0 );  // 0
+        TS_ASSERT_EQUALS( layer5->getWeight( 4, 1, 1 ), 2 );  // min( 1+3, 2 )
+        TS_ASSERT_EQUALS( layer5->getWeight( 4, 2, 1 ), 0 );  // 0
+        TS_ASSERT_EQUALS( layer5->getWeight( 4, 3, 1 ), -2 ); // max( -1-3,-2 )
+
+        // Edges into x24, which is the NEG,DEC node of layer 5
+        TS_ASSERT_EQUALS( layer5->getWeight( 4, 0, 2 ), 0 );  // 0
+        TS_ASSERT_EQUALS( layer5->getWeight( 4, 1, 2 ), 2 );  // min( 1+3, 2 )
+        TS_ASSERT_EQUALS( layer5->getWeight( 4, 2, 2 ), 0 );  // 0
+        TS_ASSERT_EQUALS( layer5->getWeight( 4, 3, 2 ), -2 ); // max( -1-3,-2 )
+
+        // Edges into x25, which is the NEG,INC node of layer 5
+        TS_ASSERT_EQUALS( layer5->getWeight( 4, 0, 3 ), 4 );  // max( 1+3, 2)
+        TS_ASSERT_EQUALS( layer5->getWeight( 4, 1, 3 ), 0 );  // 0
+        TS_ASSERT_EQUALS( layer5->getWeight( 4, 2, 3 ), -4 ); // min( -1-3, -2)
+        TS_ASSERT_EQUALS( layer5->getWeight( 4, 3, 3 ), 0 );  // 0
+
+        // Check the biases
+        TS_ASSERT_EQUALS( layer5->getBias( 0 ), 2 );
+        TS_ASSERT_EQUALS( layer5->getBias( 1 ), -3 );
+        TS_ASSERT_EQUALS( layer5->getBias( 2 ), -3 );
+        TS_ASSERT_EQUALS( layer5->getBias( 3 ), 2 );
     }
 };

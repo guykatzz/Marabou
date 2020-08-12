@@ -488,7 +488,7 @@ public:
             for ( unsigned j = 0; j < nlr->getLayer( i )->getSize(); ++j )
                 ((NLR::Layer *)nlr->getLayer( i ))->setNeuronVariable( j, currentIndex++ );
 
-            if ( i == 4 )
+            if ( i == 5 )
                 break;
 
         }
@@ -534,42 +534,48 @@ public:
             {
                 for ( unsigned targetClass = 0; targetClass < 4; ++targetClass )
                 {
-                    CEGARSolver::NeuronType sourceType = (CEGARSolver::NeuronType)sourceClass;
-                    CEGARSolver::NeuronType targetType = (CEGARSolver::NeuronType)targetClass;
-
-                    if ( _weightOperators[sourceType][targetType] == ZERO )
+                    if ( _weightOperators[sourceClass][targetClass] == ZERO )
                         continue;
 
                     max = FloatUtils::negativeInfinity();
                     min = FloatUtils::infinity();
 
-                    source = sourceClass;
-                    while ( source < concretePreviousLayer->getSize() )
+                    printf( "Working on source, target: %u, %u\n", sourceClass, targetClass );
+
+                    target = targetClass;
+                    while ( target < concreteLayer->getSize() )
                     {
                         sum = 0;
-                        target = targetClass;
-                        while ( target < concreteLayer->getSize() )
+                        source = sourceClass;
+                        while ( source < concretePreviousLayer->getSize() )
                         {
+                            printf( "\tSumming: += %.2lf (%u-->%u)\n", concreteLayer->getWeight( layer - 1, source, target ), source, target );
                             sum += concreteLayer->getWeight( layer - 1, source, target );
-                            target += 4;
+                            source += 4;
                         }
 
-                        if ( _weightOperators[sourceType][targetType] == MAX )
+                        if ( _weightOperators[sourceClass][targetClass] == MAX )
+                        {
                             max = FloatUtils::max( max, sum );
+                            printf( "Current max is: %lf\n", max );
+                        }
                         else
+                        {
                             min = FloatUtils::min( min, sum );
+                            printf( "Current min is: %lf\n", min );
+                        }
 
-                        source += 4;
+                        target += 4;
                     }
 
-                    if ( _weightOperators[sourceType][targetType] == MAX )
+                    if ( _weightOperators[sourceClass][targetClass] == MAX )
                     {
                         abstractLayer->setWeight( layer - 1,
                                                   sourceClass,
                                                   targetClass,
                                                   max );
                     }
-                    else if ( _weightOperators[sourceType][targetType] == MIN )
+                    else if ( _weightOperators[sourceClass][targetClass] == MIN )
                     {
                         abstractLayer->setWeight( layer - 1,
                                                   sourceClass,
@@ -577,6 +583,29 @@ public:
                                                   min );
                     }
                 }
+            }
+
+            // Biases
+            for ( unsigned targetClass = 0; targetClass < 4; ++targetClass )
+            {
+                max = FloatUtils::negativeInfinity();
+                min = FloatUtils::infinity();
+
+                target = targetClass;
+                while ( target < concreteLayer->getSize() )
+                {
+                    if ( _biasOperators[targetClass] == MAX )
+                        max = FloatUtils::max( max, concreteLayer->getBias( target ) );
+                    else
+                        min = FloatUtils::min( min, concreteLayer->getBias( target ) );
+
+                    target += 4;
+                }
+
+                if ( _biasOperators[targetClass] == MAX )
+                    abstractLayer->setBias( targetClass, max );
+                else
+                    abstractLayer->setBias( targetClass, min );
             }
         }
 
