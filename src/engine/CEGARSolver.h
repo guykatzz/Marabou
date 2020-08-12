@@ -24,6 +24,10 @@
 class CEGARSolver
 {
 public:
+    CEGARSolver()
+    {
+        initializeWeightOperators();
+    }
 
     void run( InputQuery &query )
     {
@@ -89,7 +93,8 @@ public:
        MIN = 2,
     };
 
-    Map<NeuronType, Map<NeuronType,unsigned>> _weightOperators;
+    Map<unsigned, Map<unsigned, unsigned>> _weightOperators;
+    Map<unsigned, unsigned> _biasOperators;
 
     InputQuery getPreprocessedQuery()
     {
@@ -121,6 +126,12 @@ public:
         _weightOperators[NEG_INC][POS_DEC] = MAX;
         _weightOperators[NEG_INC][NEG_DEC] = MAX;
         _weightOperators[NEG_INC][NEG_INC] = ZERO;
+
+        // Bias operators
+        _biasOperators[POS_INC] = MAX;
+        _biasOperators[POS_DEC] = MIN;
+        _biasOperators[NEG_DEC] = MIN;
+        _biasOperators[NEG_INC] = MAX;
     }
 
     Map<NLR::NeuronIndex, NeuronType> _indexToType;
@@ -220,9 +231,9 @@ public:
         unsigned originalSize = thisLayer->getSize();
 
         NLR::Layer *preprocessedLayer = new NLR::Layer( thisLayer->getLayerIndex(),
-                                                       thisLayer->getLayerType(),
-                                                       originalSize,
-                                                       &nlr );
+                                                        thisLayer->getLayerType(),
+                                                        originalSize,
+                                                        &nlr );
 
         printf( "pp output layer called. Output layer size: %u. Previous layer size: %u\n", originalSize, previousLayer->getSize() );
         preprocessedLayer->addSourceLayer( layer - 1, previousLayer->getSize() * 4 );
@@ -496,23 +507,15 @@ public:
     {
         printf( "Abstract layer to saturation called (layer = %u)!\n", layer );
 
-        printf( "1\n" );
-
         NLR::Layer *previousLayer = (NLR::Layer *)nlr.getLayer( layer - 1 );
-                printf( "1.1\n" );
         const NLR::Layer *concretePreviousLayer = preprocessedNlr.getLayer( layer - 1 );
-                printf( "1.2\n" );
         const NLR::Layer *concreteLayer = preprocessedNlr.getLayer( layer );
         // NLR::Layer *nextLayer = (NLR::Layer *)nlr.getLayer( layer + 1 );
-printf( "2\n" );
 
         NLR::Layer::Type type = concreteLayer->getLayerType();
 
         NLR::Layer *abstractLayer = new NLR::Layer( layer, type, 4, &nlr );
         abstractLayer->addSourceLayer( layer - 1, previousLayer->getSize() );
-
-
-printf( "3\n" );
 
         if ( type == NLR::Layer::WEIGHTED_SUM && layer != 3 )
         {
@@ -588,43 +591,98 @@ printf( "3\n" );
             unsigned source;
             unsigned target = 0;
 
+            printf( "concretePreviousLayer size = %u\n", concretePreviousLayer->getSize() );
+            printf( "concreteLayer size = %u\n", concreteLayer->getSize() );
+
+            // Weights
             for ( unsigned sourceClass = 0; sourceClass < 4; ++sourceClass )
             {
+                printf( "\tWorking on source class %u\n", sourceClass );
                 for ( unsigned targetClass = 0; targetClass < 4; ++targetClass )
                 {
-                    CEGARSolver::NeuronType sourceType = (CEGARSolver::NeuronType)sourceClass;
-                    CEGARSolver::NeuronType targetType = (CEGARSolver::NeuronType)targetClass;
-
-                    if ( _weightOperators[sourceType][targetType] == ZERO )
+                    printf( "\t\tWorking on target class %u\n", targetClass );
+                    // CEGARSolver::NeuronType sourceType = (CEGARSolver::NeuronType)sourceClass;
+                    // CEGARSolver::NeuronType targetType = (CEGARSolver::NeuronType)targetClass;
+                    if ( _weightOperators[sourceClass][targetClass] == ZERO )
                         continue;
-
-
-                    max = FloatUtils::negativeInfinity();
-                    min = FloatUtils::infinity();
 
                     source = sourceClass;
                     while ( source < concretePreviousLayer->getSize() )
                     {
+                        printf( "\t\t\tActual pair: %u to %u\n", source, targetClass );
+
+                        max = FloatUtils::negativeInfinity();
+                        min = FloatUtils::infinity();
+
                         target = targetClass;
                         while ( target < concreteLayer->getSize() )
                         {
-                            if ( _weightOperators[sourceType][targetType] == MAX )
+                            if ( _weightOperators[sourceClass][targetClass] == MAX )
+                            {
+                                printf( "\t\t\t\tMaxing with %.5lf (weight from %u to %u)\n", concreteLayer->getWeight( layer - 1, source, target ), source, target );
                                 max = FloatUtils::max( max,
                                                        concreteLayer->getWeight( layer - 1, source, target ) );
+                            }
                             else
+                            {
+                                printf( "\t\t\t\tMining with %.5lf (weight from %u to %u)\n", concreteLayer->getWeight( layer - 1, source, target ), source, target );
                                 min = FloatUtils::min( min,
                                                        concreteLayer->getWeight( layer - 1, source, target ) );
+                            }
 
                             target += 4;
                         }
+
+                        if ( _weightOperators[sourceClass][targetClass] == MAX )
+                        {
+                            abstractLayer->setWeight( layer - 1, source, targetClass, max );
+                            printf( "\t\t\tActual pair: %u to %u = %.5lf (done)\n", source, targetClass, max );
+                        }
+                        else
+                        {
+                            abstractLayer->setWeight( layer - 1, source, targetClass, min );
+                            printf( "\t\t\tActual pair: %u to %u = %.5lf (done)\n", source, targetClass, min );
+                        }
+
+                        source += 4;
+                    }
+                }
+            }
+
+            // Biases
+            for ( unsigned targetClass = 0; targetClass < 4; ++targetClass )
+            {
+                printf( "Working on bias for node %u\n", targetClass );
+
+                max = FloatUtils::negativeInfinity();
+                min = FloatUtils::infinity();
+
+                target = targetClass;
+                while ( target < concreteLayer->getSize() )
+                {
+                    if ( _biasOperators[targetClass] == MAX )
+                    {
+                        printf( "\tmaxing with %lf\n", concreteLayer->getBias( target ) );
+                        max = FloatUtils::max( max, concreteLayer->getBias( target ) );
+                    }
+                    else
+                    {
+                        printf( "\tmining with %lf\n", concreteLayer->getBias( target ) );
+                        min = FloatUtils::min( min, concreteLayer->getBias( target ) );
                     }
 
-                    if ( _weightOperators[sourceType][targetType] == MAX )
-                        abstractLayer->setWeight( layer - 1, source, target, max );
-                    else
-                        abstractLayer->setWeight( layer - 1, source, target, min );
+                    target += 4;
+                }
 
-                    source += 4;
+                if ( _biasOperators[targetClass] == MAX )
+                {
+                    printf( "\tSetting %lf\n", max );
+                    abstractLayer->setBias( targetClass, max );
+                }
+                else
+                {
+                    printf( "\tSetting %lf\n", min );
+                    abstractLayer->setBias( targetClass, min );
                 }
             }
         }

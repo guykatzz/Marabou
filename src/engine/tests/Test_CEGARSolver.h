@@ -247,6 +247,8 @@ public:
         TS_ASSERT_EQUALS( lastLayer->getWeight( 6, 6, 0 ), -2 );  // NEG DEC
         TS_ASSERT_EQUALS( lastLayer->getWeight( 6, 7, 0 ), 0 );
 
+        TS_ASSERT_EQUALS( lastLayer->getBias( 0 ), 0 );
+
         // Each relu neuron is mapped to matching node
         for ( unsigned i = 0; i < 8; ++i )
         {
@@ -386,6 +388,16 @@ public:
         TS_ASSERT_EQUALS( layer5->getWeight( 4, 9, 7 ), 0 );
         TS_ASSERT_EQUALS( layer5->getWeight( 4, 10, 7 ), -3 );
         TS_ASSERT_EQUALS( layer5->getWeight( 4, 11, 7 ), 0 );
+
+        // Biases
+        TS_ASSERT_EQUALS( layer5->getBias( 0 ), 2 );
+        TS_ASSERT_EQUALS( layer5->getBias( 1 ), 2 );
+        TS_ASSERT_EQUALS( layer5->getBias( 2 ), 2 );
+        TS_ASSERT_EQUALS( layer5->getBias( 3 ), 2 );
+        TS_ASSERT_EQUALS( layer5->getBias( 4 ), -3 );
+        TS_ASSERT_EQUALS( layer5->getBias( 5 ), -3 );
+        TS_ASSERT_EQUALS( layer5->getBias( 6 ), -3 );
+        TS_ASSERT_EQUALS( layer5->getBias( 7 ), -3 );
 
         // Layers 3 and 4, WS + RELU
         const NLR::Layer *layer3 = ppNlr->getLayer( 3 );
@@ -615,7 +627,9 @@ public:
         TS_ASSERT( ppIpq.getNetworkLevelReasoner() );
         NLR::NetworkLevelReasoner *ppNlr = ppIpq.getNetworkLevelReasoner();
 
+        TS_TRACE( "Starting" );
         TS_ASSERT_THROWS_NOTHING( cegar.createInitialAbstraction() );
+        TS_TRACE( "Done" );
 
         InputQuery abstractQuery = cegar.getCurrentQuery();
 
@@ -636,5 +650,59 @@ public:
         TS_ASSERT( ( *ppNlr->getLayer( 0 ) ) == ( *absNlr->getLayer( 0 ) ) );
         TS_ASSERT( ( *ppNlr->getLayer( 1 ) ) == ( *absNlr->getLayer( 1 ) ) );
         TS_ASSERT( ( *ppNlr->getLayer( 2 ) ) == ( *absNlr->getLayer( 2 ) ) );
+
+        // Layer 3: 4 nodes, weights determined by mins and maxes
+        const NLR::Layer *layer3 = absNlr->getLayer( 3 );
+
+        TS_ASSERT_EQUALS( layer3->getSize(), 4U );
+        TS_ASSERT_EQUALS( layer3->getLayerType(), NLR::Layer::WEIGHTED_SUM );
+
+        // Edges into x18, which is the POS,INC node of layer 3
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 0, 0 ), 1 );
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 1, 0 ), 0 );
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 2, 0 ), -1 );
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 3, 0 ), 0 );
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 4, 0 ), 3 );
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 5, 0 ), 0 );
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 6, 0 ), 0 );
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 7, 0 ), 0 );
+
+        // Edges into x19, which is the POS,DEC node of layer 3
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 0, 1 ), 0 );
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 1, 1 ), 0 );
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 2, 1 ), 0 );
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 3, 1 ), 0 );
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 4, 1 ), 0 );
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 5, 1 ), 0 );
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 6, 1 ), 0 );
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 7, 1 ), 0 );
+
+        // Edges into x20, which is the NEG,DEC node of layer 3
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 0, 2 ), 0 );
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 1, 2 ), 0 );
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 2, 2 ), 0 );
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 3, 2 ), 0 );
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 4, 2 ), 0 );
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 5, 2 ), 0 );
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 6, 2 ), 0 );
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 7, 2 ), 0 );
+
+        // Edges into x21, which is the NEG,INC node of layer 3
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 0, 3 ), 1 );
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 1, 3 ), 0 );
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 2, 3 ), -1 );
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 3, 3 ), 0 );
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 4, 3 ), 3 );
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 5, 3 ), 0 );
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 6, 3 ), 0 );
+        TS_ASSERT_EQUALS( layer3->getWeight( 2, 7, 3 ), 0 );
+
+        // Check the biases
+        TS_ASSERT_EQUALS( layer3->getBias( 0 ), 3 );
+        TS_ASSERT_EQUALS( layer3->getBias( 1 ), -4 );
+        TS_ASSERT_EQUALS( layer3->getBias( 2 ), -4 );
+        TS_ASSERT_EQUALS( layer3->getBias( 3 ), 3 );
+
+        layer3->dump();
     }
 };

@@ -199,8 +199,6 @@ void Layer::addSourceLayer( unsigned layerNumber, unsigned layerSize )
 
     if ( _type == WEIGHTED_SUM )
     {
-        printf( "Allocating weight arrays\n" );
-
         _layerToWeights[layerNumber] = new double[layerSize * _size];
         _layerToPositiveWeights[layerNumber] = new double[layerSize * _size];
         _layerToNegativeWeights[layerNumber] = new double[layerSize * _size];
@@ -1419,7 +1417,6 @@ double Layer::getEliminatedNeuronValue( unsigned neuron ) const
 
 bool Layer::operator==( const Layer &other ) const
 {
-    printf( "1\n" );
 
     if ( _layerIndex != other._layerIndex )
         return false;
@@ -1429,7 +1426,6 @@ bool Layer::operator==( const Layer &other ) const
 
     if ( _size != other._size )
         return false;
-printf( "2\n" );
 
     if ( _sourceLayers != other._sourceLayers )
         return false;
@@ -1467,8 +1463,6 @@ printf( "2\n" );
             return false;
     }
 
-    printf( "3\n" );
-
     if ( ( _bias && !other._bias ) || ( !_bias && other._bias ) )
         return false;
 
@@ -1480,14 +1474,12 @@ printf( "2\n" );
 
     if ( _neuronToVariable != other._neuronToVariable )
         return false;
-printf( "4\n" );
 
     if ( _variableToNeuron != other._variableToNeuron )
         return false;
 
     if ( _eliminatedNeurons != other._eliminatedNeurons )
         return false;
-printf( "5\n" );
 
     return true;
 }
