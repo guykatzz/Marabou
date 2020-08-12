@@ -703,6 +703,20 @@ public:
         TS_ASSERT_EQUALS( layer3->getBias( 2 ), -4 );
         TS_ASSERT_EQUALS( layer3->getBias( 3 ), 3 );
 
+        // Layer 4: 4 nodes, ReLUs of previous layer
+        const NLR::Layer *layer4 = absNlr->getLayer( 4 );
+
+        TS_ASSERT_EQUALS( layer4->getSize(), 4U );
+        TS_ASSERT_EQUALS( layer4->getLayerType(), NLR::Layer::RELU );
+
+        // Each relu neuron is mapped to matching node
+        for ( unsigned i = 0; i < 4; ++i )
+        {
+            TS_ASSERT_EQUALS( layer4->getActivationSources( i ).size(), 1U );
+            TS_ASSERT_EQUALS( layer4->getActivationSources( i ).begin()->_layer, 3U );
+            TS_ASSERT_EQUALS( layer4->getActivationSources( i ).begin()->_neuron, i );
+        }
+
         layer3->dump();
     }
 };

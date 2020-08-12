@@ -488,7 +488,8 @@ public:
             for ( unsigned j = 0; j < nlr->getLayer( i )->getSize(); ++j )
                 ((NLR::Layer *)nlr->getLayer( i ))->setNeuronVariable( j, currentIndex++ );
 
-            break;
+            if ( i == 4 )
+                break;
 
         }
 
